@@ -1,3 +1,5 @@
+mod service;
+
 use clap::Parser;
 use crate::app::App;
 use crate::cmd::Cli;
@@ -28,7 +30,21 @@ async fn main() -> color_eyre::Result<()> {
 
     // If no command is provided, run the TUI
     let terminal = ratatui::init();
-    let result = App::new(&cli.url, &cli.token, cli.data_dir.as_deref(), cli.no_incentives).run(terminal).await;
+    let app = App::new(&cli.url, &cli.token, cli.data_dir.as_deref(), cli.no_incentives);
+    
+    // Start background services
+    service::metrics::spawn_metrics_loop(
+        app.events.get_sender(),
+        cli.url.clone(),
+        cli.token.clone(),
+    );
+    service::node::spawn_node_loop(
+        app.events.get_sender(),
+        app.client.clone(),
+        None,
+    );
+
+    let result = app.run(terminal).await;
     ratatui::restore();
     result
 }
