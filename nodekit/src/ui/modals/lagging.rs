@@ -8,47 +8,41 @@ use ratatui::{
 
 use crate::ui::modals::ModalMetadata;
 
-pub struct PartkeyModal;
+pub struct LaggingModal;
 
-impl ModalMetadata for PartkeyModal {
+impl ModalMetadata for LaggingModal {
     fn title(&self) -> String {
-        "( Participation Keys )".to_string()
+        "( Out of Sync )".to_string()
     }
     fn border_color(&self) -> Color {
-        Color::Indexed(14)
-    }
-    fn controls(&self) -> String {
-        "( (g)enerate | (esc) to close )".to_string()
+        Color::Indexed(9)
     }
     fn width(&self, _available_width: u16, _available_height: u16) -> u16 {
         60
     }
     fn height(&self, _available_width: u16, _available_height: u16) -> u16 {
-        12
+        30
     }
 }
 
-impl PartkeyModal {
+impl LaggingModal {
     pub fn new() -> Self {
         Self
     }
 }
 
-impl Widget for PartkeyModal {
+impl Widget for LaggingModal {
     fn render(self, area: Rect, buf: &mut Buffer) {
         (&self).render(area, buf);
     }
 }
 
-impl ModalMetadata for &PartkeyModal {
+impl ModalMetadata for &LaggingModal {
     fn title(&self) -> String {
         (**self).title()
     }
     fn border_color(&self) -> Color {
         (**self).border_color()
-    }
-    fn controls(&self) -> String {
-        (**self).controls()
     }
     fn width(&self, available_width: u16, available_height: u16) -> u16 {
         (**self).width(available_width, available_height)
@@ -58,19 +52,12 @@ impl ModalMetadata for &PartkeyModal {
     }
 }
 
-impl Widget for &PartkeyModal {
+impl Widget for &LaggingModal {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let text = vec![
             Line::from(""),
-            Line::from("Participation keys are required for your node to"),
-            Line::from("participate in consensus and earn incentives."),
-            Line::from(""),
-            Line::from("This process is safe. Your spending keys never leave"),
-            Line::from("your wallet. You only need to provide the participation"),
-            Line::from("details to the node."),
-            Line::from(""),
-            Line::from("To generate a new key, press 'g' or use the 'goal'"),
-            Line::from("command on your node."),
+            Line::from("Your node is significantly behind the network."),
+            Line::from("Would you like to perform a fast-catchup?"),
             Line::from(""),
         ];
 

@@ -43,8 +43,38 @@ pub enum AppEvent {
     ShowKeys,
     /// Show a modal.
     ShowModal(ModalType),
+    /// Error occurred.
+    Error(String),
     /// Hide the current modal.
     HideModal,
+    /// Update from Algod
+    AlgodUpdate(Box<algod_client::models::WaitForBlock>),
+    /// Version info from Algod
+    VersionUpdate(Box<algod_client::models::Version>),
+    /// Update availability
+    UpdateAvailable(bool),
+    /// Update accounts from Algod
+    AccountsUpdate(Vec<algod_client::models::Account>),
+    /// Update participation keys from Algod
+    KeysUpdate(Vec<algod_client::models::ParticipationKey>),
+    /// Select a specific participation key
+    SelectKey(algod_client::models::ParticipationKey),
+    /// Update average round time
+    AvgRoundTimeUpdate(u64),
+    /// Update node status
+    NodeStatusUpdate(NodeStatus),
+    /// Update metrics
+    MetricsUpdate(Metrics),
+    /// Generate participation keys
+    GenerateKeys { address: String, last_round_delta: u64 },
+    /// Key generation success
+    GenerateSuccess(algod_client::models::ParticipationKey),
+    /// Key generation error
+    GenerateError(String),
+    StartFastCatchup,
+    DeleteKey(String),
+    DeleteSuccess(String),
+    ShortlinkUpdate(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -53,6 +83,45 @@ pub enum ModalType {
     Exception,
     Hybrid,
     Partkey,
+    KeyInfo,
+    Generate,
+    Lagging,
+    DeleteConfirm,
+    Deleting,
+}
+
+#[derive(Clone, Debug, PartialEq, Default)]
+pub enum KeyInfoMode {
+    #[default]
+    Text,
+    Online,
+    QR,
+}
+
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct Metrics {
+    pub peers_ws: u64,
+    pub peers_p2p: u64,
+    pub tps: f64,
+    pub round_time: u64, // ms
+    pub rx: u64,
+    pub tx: u64,
+    pub rx_p2p: u64,
+    pub tx_p2p: u64,
+    pub last_rx: u64,
+    pub last_tx: u64,
+    pub last_rx_p2p: u64,
+    pub last_tx_p2p: u64,
+    pub last_tps: f64,
+    pub last_ts: Option<std::time::Instant>,
+}
+
+#[derive(Clone, Debug, PartialEq, Default)]
+pub enum NodeStatus {
+    #[default]
+    Stable,
+    Syncing,
+    FastCatchup,
 }
 
 /// Terminal event handler.
@@ -97,6 +166,11 @@ impl EventHandler {
         // Ignore the result as the reciever cannot be dropped while this struct still has a
         // reference to it
         let _ = self.sender.send(Event::App(app_event));
+    }
+
+    /// Returns a clone of the sender.
+    pub fn get_sender(&self) -> mpsc::UnboundedSender<Event> {
+        self.sender.clone()
     }
 }
 

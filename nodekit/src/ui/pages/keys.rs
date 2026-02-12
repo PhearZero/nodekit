@@ -3,20 +3,30 @@ use ratatui::{
     layout::{Constraint, Rect},
     style::{Color, Style},
     text::{Line, Span},
-    widgets::{block::Title, Block, BorderType, Cell, Row, Table, Widget},
+    widgets::{Block, BorderType, Cell, Row, Table, Widget},
 };
 
-pub struct KeysPage {
-    // In a real app, this would hold keys data
+pub struct KeysPage<'a> {
+    pub keys: &'a [algod_client::models::ParticipationKey],
+    pub selected_index: usize,
+    pub participation: &'a Option<algod_client::models::AccountParticipation>,
 }
 
-impl KeysPage {
-    pub fn new() -> Self {
-        Self {}
+impl<'a> KeysPage<'a> {
+    pub fn new(
+        keys: &'a [algod_client::models::ParticipationKey],
+        selected_index: usize,
+        participation: &'a Option<algod_client::models::AccountParticipation>,
+    ) -> Self {
+        Self {
+            keys,
+            selected_index,
+            participation,
+        }
     }
 }
 
-impl Widget for &KeysPage {
+impl<'a> Widget for &KeysPage<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let block = Block::bordered()
             .border_type(BorderType::Rounded)
@@ -35,17 +45,9 @@ impl Widget for &KeysPage {
         ]);
 
         let block = block
-            .title(Title::from(title).alignment(ratatui::layout::Alignment::Left))
-            .title(
-                Title::from(controls)
-                    .alignment(ratatui::layout::Alignment::Left)
-                    .position(ratatui::widgets::block::Position::Bottom),
-            )
-            .title(
-                Title::from(navigation)
-                    .alignment(ratatui::layout::Alignment::Right)
-                    .position(ratatui::widgets::block::Position::Bottom),
-            );
+            .title(title)
+            .title_bottom(controls)
+            .title_bottom(navigation.alignment(ratatui::layout::Alignment::Right));
 
         let inner_area = block.inner(area);
         block.render(area, buf);
@@ -57,14 +59,27 @@ impl Widget for &KeysPage {
             .height(1)
             .bottom_margin(1);
 
-        // Placeholder row
-        let rows = vec![Row::new(vec![
-            Cell::from("PART-1"),
-            Cell::from("7Z58..."),
-            Cell::from("YES"),
-            Cell::from("N/A"),
-            Cell::from("N/A"),
-        ])];
+        let rows: Vec<Row> = self.keys.iter().map(|key| {
+            let is_active = if let Some(part) = self.participation {
+                if key.key.vote_first_valid == part.vote_first_valid &&
+                   key.key.vote_last_valid == part.vote_last_valid &&
+                   key.key.vote_participation_key == part.vote_participation_key {
+                    "YES"
+                } else {
+                    "NO"
+                }
+            } else {
+                "N/A"
+            };
+
+            Row::new(vec![
+                Cell::from(key.id.clone()),
+                Cell::from(key.address.clone()),
+                Cell::from(is_active),
+                Cell::from(if key.last_vote.unwrap_or(0) == 0 { "N/A".to_string() } else { key.last_vote.unwrap_or(0).to_string() }),
+                Cell::from(if key.last_block_proposal.unwrap_or(0) == 0 { "N/A".to_string() } else { key.last_block_proposal.unwrap_or(0).to_string() }),
+            ])
+        }).collect();
 
         let table = Table::new(
             rows,
@@ -84,6 +99,9 @@ impl Widget for &KeysPage {
         )
         .highlight_symbol(">> ");
 
-        table.render(inner_area, buf);
+        let mut state = ratatui::widgets::TableState::default();
+        state.select(Some(self.selected_index));
+
+        ratatui::widgets::StatefulWidget::render(table, inner_area, buf, &mut state);
     }
 }

@@ -7,29 +7,31 @@ pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
 
-    /// Data directory for the node
-    #[arg(short, long, env = "ALGOD_DATA")]
-    pub datadir: Option<String>,
-
     /// Disable setting incentive eligibility fees
     #[arg(short, long, default_value_t = false)]
     pub no_incentives: bool,
+
+    /// URL of the daemon
+    #[arg(short, long, env = "ALGOD_URL", default_value = "http://localhost:8080")]
+    pub url: String,
+
+    /// Token for the daemon
+    #[arg(short, long, env = "ALGOD_TOKEN", default_value = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+    pub token: String,
+
+    /// Data directory of the algod node
+    #[arg(short, long, env = "ALGOD_DATA")]
+    pub data_dir: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Bootstrap a new node
-    Bootstrap,
     /// Debug the current node
     Debug,
-    /// Install Algorand node
-    Install,
     /// Start the Algorand node
     Start,
     /// Stop the Algorand node
     Stop,
-    /// Uninstall Algorand node
-    Uninstall,
     /// Upgrade the Algorand node
     Upgrade,
     /// Catchup subcommands

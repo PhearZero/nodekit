@@ -15,12 +15,9 @@ async fn main() -> color_eyre::Result<()> {
 
     if let Some(command) = cli.command {
         match command {
-            crate::cmd::Commands::Bootstrap => println!("Bootstrapping..."),
             crate::cmd::Commands::Debug => println!("Debugging..."),
-            crate::cmd::Commands::Install => println!("Installing..."),
             crate::cmd::Commands::Start => println!("Starting..."),
             crate::cmd::Commands::Stop => println!("Stopping..."),
-            crate::cmd::Commands::Uninstall => println!("Uninstalling..."),
             crate::cmd::Commands::Upgrade => println!("Upgrading..."),
             crate::cmd::Commands::Catchup { command } => println!("Catchup: {:?}", command),
             crate::cmd::Commands::Configure { command } => println!("Configure: {:?}", command),
@@ -31,7 +28,7 @@ async fn main() -> color_eyre::Result<()> {
 
     // If no command is provided, run the TUI
     let terminal = ratatui::init();
-    let result = App::new().run(terminal).await;
+    let result = App::new(&cli.url, &cli.token, cli.data_dir.as_deref(), cli.no_incentives).run(terminal).await;
     ratatui::restore();
     result
 }

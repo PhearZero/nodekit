@@ -1,46 +1,49 @@
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Rect},
-    style::Color,
-    text::Line,
+    style::{Color, Style},
+    text::{Line, Span},
     widgets::{Paragraph, Widget},
 };
 
 use crate::ui::modals::ModalMetadata;
 
-pub struct PartkeyModal;
+pub struct DeleteConfirmModal {
+    pub key_id: String,
+    pub is_active: bool,
+}
 
-impl ModalMetadata for PartkeyModal {
+impl ModalMetadata for DeleteConfirmModal {
     fn title(&self) -> String {
-        "( Participation Keys )".to_string()
+        "( Delete Key )".to_string()
     }
     fn border_color(&self) -> Color {
-        Color::Indexed(14)
+        Color::Indexed(9) // Red
     }
     fn controls(&self) -> String {
-        "( (g)enerate | (esc) to close )".to_string()
+        "( (y)es | (n)o )".to_string()
     }
     fn width(&self, _available_width: u16, _available_height: u16) -> u16 {
         60
     }
     fn height(&self, _available_width: u16, _available_height: u16) -> u16 {
-        12
+        if self.is_active { 12 } else { 10 }
     }
 }
 
-impl PartkeyModal {
-    pub fn new() -> Self {
-        Self
+impl DeleteConfirmModal {
+    pub fn new(key_id: String, is_active: bool) -> Self {
+        Self { key_id, is_active }
     }
 }
 
-impl Widget for PartkeyModal {
+impl Widget for DeleteConfirmModal {
     fn render(self, area: Rect, buf: &mut Buffer) {
         (&self).render(area, buf);
     }
 }
 
-impl ModalMetadata for &PartkeyModal {
+impl ModalMetadata for &DeleteConfirmModal {
     fn title(&self) -> String {
         (**self).title()
     }
@@ -58,21 +61,23 @@ impl ModalMetadata for &PartkeyModal {
     }
 }
 
-impl Widget for &PartkeyModal {
+impl Widget for &DeleteConfirmModal {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let text = vec![
+        let mut text = vec![
             Line::from(""),
-            Line::from("Participation keys are required for your node to"),
-            Line::from("participate in consensus and earn incentives."),
-            Line::from(""),
-            Line::from("This process is safe. Your spending keys never leave"),
-            Line::from("your wallet. You only need to provide the participation"),
-            Line::from("details to the node."),
-            Line::from(""),
-            Line::from("To generate a new key, press 'g' or use the 'goal'"),
-            Line::from("command on your node."),
+            Line::from(vec![
+                Span::raw("Are you sure you want to delete key "),
+                Span::styled(&self.key_id, Style::default().fg(Color::Yellow)),
+                Span::raw("?"),
+            ]),
             Line::from(""),
         ];
+
+        if self.is_active {
+            text.push(Line::from(Span::styled("⚠ WARNING: This key is currently active!", Style::default().fg(Color::Red))));
+            text.push(Line::from("You must take your node offline before deleting."));
+            text.push(Line::from(""));
+        }
 
         Paragraph::new(text)
             .alignment(Alignment::Center)
