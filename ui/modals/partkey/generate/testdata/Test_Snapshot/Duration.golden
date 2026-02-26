@@ -1,8 +1,0 @@
-╭──Validity Range────────────────────────────────────────────────────────╮
-│                                                                        │
-│ How long should the keys be valid for?                                 │
-│                                                                        │
-│ Duration in days:                                                      │
-│ >  (default: 30 days)                                                  │
-│                                                                        │
-╰────| (esc) to cancel |───────────────────────────( (s)witch range )────╯

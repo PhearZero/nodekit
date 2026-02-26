@@ -19,7 +19,7 @@ cd nodekit
 Build the project
 
 ```bash
-make build
+cargo build
 ```
 
 Launch the TUI. 

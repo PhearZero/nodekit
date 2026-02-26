@@ -49,6 +49,12 @@ pub enum Commands {
         #[command(subcommand)]
         command: Option<TelemetryCommands>,
     },
+    /// Web subcommand
+    Web {
+        /// Port to listen on
+        #[arg(short, long, default_value_t = 8080)]
+        port: u16,
+    },
 }
 
 #[derive(Subcommand, Debug)]

@@ -24,6 +24,22 @@ async fn main() -> color_eyre::Result<()> {
             crate::cmd::Commands::Catchup { command } => println!("Catchup: {:?}", command),
             crate::cmd::Commands::Configure { command } => println!("Configure: {:?}", command),
             crate::cmd::Commands::Telemetry { command } => println!("Telemetry: {:?}", command),
+            crate::cmd::Commands::Web { port } => {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    println!(
+                        "Web mode is only available when targeting wasm32.\n\nTo run the web UI: \n  1) rustup target add wasm32-unknown-unknown\n  2) cargo install --locked trunk\n  3) cd nodekit && trunk serve\nThen open http://localhost:{} in your browser.",
+                        port
+                    );
+                    return Ok(());
+                }
+                #[cfg(target_arch = "wasm32")]
+                {
+                    // The wasm/web entrypoint is defined in src/bin/web.rs
+                    // This path should not be hit under wasm target for this binary.
+                    return Ok(());
+                }
+            }
         }
         return Ok(());
     }
