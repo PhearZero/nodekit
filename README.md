@@ -2,50 +2,46 @@
 
 Manage Algorand nodes from the command line
 
-### Synopsis
+> [!IMPORTANT]
+> This project is just for fun and is currently a work in progress.
 
-                                                                                                    
-<img alt="Terminal Render" src="/assets/nodekit.png" width="65%">                                             
-                                                                                                    
-                                                                                                    
-Manage Algorand nodes from the command line                                                         
-                                                                                                    
-Overview:                                                                                           
-Welcome to NodeKit, a TUI for managing Algorand nodes.                                              
-A one stop shop for managing Algorand nodes, including node creation, configuration, and management.
-                                                                                                    
-Note: This is still a work in progress. Expect bugs and rough edges.                                
+### Getting Started
 
-```
-nodekit [flags]
-```
+#### Prerequisites
 
-### Options
+- [Rust](https://www.rust-lang.org/tools/install) (2024 edition supported)
+- [Trunk](https://trunkrs.dev/#install) (for web/WASM mode)
+- `wasm32-unknown-unknown` target: `rustup target add wasm32-unknown-unknown`
 
-```
-  -d, --datadir string   Data directory for the node
-  -h, --help             help for nodekit
-  -n, --no-incentives    Disable setting incentive eligibility fees
-```
-
-### SEE ALSO
-
-* [nodekit bootstrap](/man/nodekit_bootstrap.md)	 - Initialize a fresh node
-* [nodekit catchup](/man/nodekit_catchup.md)	 - Manage Fast-Catchup for your node
-* [nodekit configure](/man/nodekit_configure.md)	 - Change settings on the system (WIP)
-* [nodekit debug](/man/nodekit_debug.md)	 - Display debugging information
-* [nodekit install](/man/nodekit_install.md)	 - Install the node daemon
-* [nodekit start](/man/nodekit_start.md)	 - Start the node daemon
-* [nodekit stop](/man/nodekit_stop.md)	 - Stop the node daemon
-* [nodekit telemetry](/man/nodekit_telemetry.md)	 - Configure telemetry profile
-* [nodekit uninstall](/man/nodekit_uninstall.md)	 - Uninstall the node daemon
-* [nodekit upgrade](/man/nodekit_upgrade.md)	 - Upgrade the node daemon
-
-
-### Installing
-
-Connect to your server and run the installation script which will bootstrap your node.
+#### Cloning the Repository
 
 ```bash
-curl -fsSL https://nodekit.run/install.sh | bash
+git clone https://github.com/phearzero/nodekit.git
+cd nodekit
 ```
+
+### Running the CLI (Native)
+
+To run the Nodekit TUI natively in your terminal:
+
+```bash
+# Run with default settings (connects to localhost:8080)
+cargo run --bin nodekit
+
+# Run with custom node configuration
+cargo run --bin nodekit -- --url http://your-node:8080 --token YOUR_TOKEN
+```
+
+### Running the Web UI (WASM)
+
+Nodekit can be served as a web application using [Trunk](https://trunkrs.dev/).
+By default it uses http://localhost:8080 with AAAA... token. It is hard coded for now
+
+```bash
+# From the project root
+cd nodekit
+trunk serve -p 8081
+```
+
+Then open `http://localhost:8081` in your browser.
+
