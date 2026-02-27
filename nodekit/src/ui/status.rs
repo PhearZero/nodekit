@@ -82,6 +82,7 @@ impl<'a> Widget for &StatusComponent<'a> {
             NodeStatus::Stable => ("STABLE ", Color::Green),
             NodeStatus::Syncing => ("SYNCING ", Color::Yellow),
             NodeStatus::FastCatchup => ("FAST-CATCHUP ", Color::Yellow),
+            NodeStatus::Disconnected => ("OFFLINE ", Color::Red),
         };
 
         let row1_right = Line::from(vec![
@@ -124,8 +125,10 @@ impl<'a> Widget for &StatusComponent<'a> {
         buf.set_line(right_x, chunks[2].y, &row3_right, row3_right.width() as u16);
 
         // Row 4: TPS and Tx
-        let tps_text = if *self.node_status != NodeStatus::Stable {
+        let tps_text = if *self.node_status != NodeStatus::Stable && *self.node_status != NodeStatus::Disconnected {
             "--".to_string()
+        } else if *self.node_status == NodeStatus::Disconnected {
+            "OFFLINE".to_string()
         } else {
             format!("{:.2}", self.metrics.tps)
         };
@@ -153,8 +156,10 @@ impl<'a> Widget for &StatusComponent<'a> {
         buf.set_line(right_x, chunks[3].y, &row4_right, row4_right.width() as u16);
 
         // Row 5: Round time and Rx
-        let round_time_text = if *self.node_status != NodeStatus::Stable || self.metrics.round_time == 0 {
+        let round_time_text = if (*self.node_status != NodeStatus::Stable && *self.node_status != NodeStatus::Disconnected) || self.metrics.round_time == 0 {
             "--".to_string()
+        } else if *self.node_status == NodeStatus::Disconnected {
+            "OFFLINE".to_string()
         } else {
             format!("{:.2}s", self.metrics.round_time as f64 / 1000.0)
         };

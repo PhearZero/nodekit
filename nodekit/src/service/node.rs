@@ -1,5 +1,5 @@
 use tokio::sync::mpsc;
-use crate::event::{Event, AppEvent, AlgodVersion, spawn};
+use crate::event::{Event, AppEvent, AlgodVersion, spawn, Instant, sleep};
 
 pub fn spawn_node_loop(
     sender: mpsc::UnboundedSender<Event>,
@@ -9,7 +9,7 @@ pub fn spawn_node_loop(
     spawn(async move {
         let mut last_round = None;
         let mut round_times = std::collections::VecDeque::with_capacity(100);
-        let mut last_block_time: Option<std::time::Instant> = None;
+        let mut last_block_time: Option<Instant> = None;
         let mut current_version = initial_version;
         let mut current_node_status = crate::event::NodeStatus::Stable;
 
@@ -49,15 +49,17 @@ pub fn spawn_node_loop(
                         break;
                     }
                     Err(e) => {
+                        let _ = sender.send(Event::App(AppEvent::NodeStatusUpdate(crate::event::NodeStatus::Disconnected)));
                         let err_str = format!("{:?}", e);
                         if err_str.contains("503") || err_str.contains("Service Unavailable") {
                             // Node is likely starting up or in fast catchup, retry version fetch later
-                            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                            sleep(std::time::Duration::from_secs(2)).await;
                             continue;
                         }
                         // For other errors, we might want to report it but maybe not immediately exit
-                        let _ = sender.send(Event::App(AppEvent::Error(format!("Error fetching version: {:?}", e))));
-                        break;
+                        // let _ = sender.send(Event::App(AppEvent::Error(format!("Error fetching version: {:?}", e))));
+                        sleep(std::time::Duration::from_secs(5)).await;
+                        continue;
                     }
                 }
             }
@@ -114,7 +116,7 @@ pub fn spawn_node_loop(
 
             match status_res {
                 Ok(status) => {
-                    let now = std::time::Instant::now();
+                    let now = Instant::now();
                     if let Some(last_time) = last_block_time {
                         let duration = now.duration_since(last_time);
                         round_times.push_back(duration.as_millis() as u64);
@@ -202,7 +204,7 @@ pub fn spawn_node_loop(
                             let _ = sender.send(Event::App(AppEvent::AccountsUpdate(accounts)));
                         }
 
-                        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                        sleep(std::time::Duration::from_secs(2)).await;
                         continue;
                     }
 
@@ -250,15 +252,16 @@ pub fn spawn_node_loop(
                     }
                 }
                 Err(e) => {
+                    let _ = sender.send(Event::App(AppEvent::NodeStatusUpdate(crate::event::NodeStatus::Disconnected)));
                     let err_str = format!("{:?}", e);
                     if err_str.contains("503") || err_str.contains("Service Unavailable") || err_str.contains("Unexpected text response") {
                         // On 503 or non-JSON status fetch, just wait and retry without showing error modal
-                        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                        sleep(std::time::Duration::from_secs(2)).await;
                         continue;
                     }
-                    let _ = sender.send(Event::App(AppEvent::Error(format!("Error fetching status: {:?}", e))));
+                    // let _ = sender.send(Event::App(AppEvent::Error(format!("Error fetching status: {:?}", e))));
                     // On other errors, wait a bit before retrying to avoid spamming
-                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                    sleep(std::time::Duration::from_secs(3)).await;
                 }
             }
         }

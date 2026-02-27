@@ -6,6 +6,18 @@ authors = ["Michael J Feher <michael.feher@algorand.foundation>"]
 license = "MIT"
 edition = "2024"
 
+[lib]
+name = "nodekit"
+path = "src/lib.rs"
+
+[[bin]]
+name = "nodekit"
+path = "src/main.rs"
+
+[[bin]]
+name = "web"
+path = "src/bin/web.rs"
+
 [dependencies]
 futures = "0.3.31"
 color-eyre = "0.6.3"
@@ -27,7 +39,7 @@ ratatui = { version = "0.30.0", features = ["crossterm"] }
 reqwest = { version = "0.12.12", features = ["json"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-tokio = { version = "1.40.0", features = ["sync", "macros", "rt", "time"] }
+tokio = { version = "1.40.0", features = ["sync", "macros", "rt"] }
 ratatui = { version = "0.30.0", default-features = false }
 ratzilla = { version = "0.3.0", default-features = false }
 getrandom = { version = "0.2", features = ["js"] }
@@ -35,6 +47,8 @@ wasm-bindgen-futures = "0.4"
 uuid = { version = "1.13.1", features = ["v4", "js"] }
 async-trait = "0.1"
 reqwest = { version = "0.12.12", default-features = false, features = ["json"] }
+web-time = "1.1.0"
+gloo-timers = { version = "0.3", features = ["futures"] }
 
 # Read the optimization guideline for more details: https://ratatui.rs/recipes/apps/release-your-app/#optimizations
 [profile.release]

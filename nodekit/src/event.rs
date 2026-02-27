@@ -1,10 +1,10 @@
 use color_eyre::eyre::OptionExt;
+#[cfg(not(target_arch = "wasm32"))]
 use futures::{FutureExt, StreamExt};
 #[cfg(not(target_arch = "wasm32"))]
 use ratatui::crossterm::event::{Event as CrosstermEvent, KeyEvent as CrosstermKeyEvent, KeyCode as CrosstermKeyCode, KeyModifiers as CrosstermKeyModifiers};
 use std::time::Duration;
 use tokio::sync::mpsc;
-use serde::{Deserialize, Serialize};
 
 pub type AlgodStatus = algod_client::models::WaitForBlock;
 pub type AlgodVersion = algod_client::models::Version;
@@ -236,6 +236,17 @@ pub enum KeyInfoMode {
     QR,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+pub use std::time::Instant;
+#[cfg(not(target_arch = "wasm32"))]
+pub use tokio::time::sleep;
+#[cfg(target_arch = "wasm32")]
+pub use web_time::Instant;
+#[cfg(target_arch = "wasm32")]
+pub async fn sleep(duration: std::time::Duration) {
+    gloo_timers::future::TimeoutFuture::new(duration.as_millis() as u32).await;
+}
+
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct Metrics {
     pub peers_ws: u64,
@@ -251,7 +262,7 @@ pub struct Metrics {
     pub last_rx_p2p: u64,
     pub last_tx_p2p: u64,
     pub last_tps: f64,
-    pub last_ts: Option<std::time::Instant>,
+    pub last_ts: Option<Instant>,
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -260,6 +271,7 @@ pub enum NodeStatus {
     Stable,
     Syncing,
     FastCatchup,
+    Disconnected,
 }
 
 /// Terminal event handler.
@@ -307,7 +319,7 @@ impl EventHandler {
     ///
     /// This is useful for sending events to the event handler which will be processed by the next
     /// iteration of the application's event loop.
-    pub fn send(&mut self, app_event: AppEvent) {
+    pub fn send(&self, app_event: AppEvent) {
         // Ignore the result as the reciever cannot be dropped while this struct still has a
         // reference to it
         let _ = self.sender.send(Event::App(app_event));
@@ -336,10 +348,10 @@ impl EventTask {
     /// This function emits tick events at a fixed rate and polls for crossterm events in between.
     async fn run(self) -> color_eyre::Result<()> {
         let tick_rate = Duration::from_secs_f64(1.0 / TICK_FPS);
-        let mut tick = tokio::time::interval(tick_rate);
 
         #[cfg(not(target_arch = "wasm32"))]
         {
+            let mut tick = tokio::time::interval(tick_rate);
             let mut reader = crossterm::event::EventStream::new();
             loop {
                 let tick_delay = tick.tick();
@@ -365,7 +377,7 @@ impl EventTask {
         #[cfg(target_arch = "wasm32")]
         {
             loop {
-                let _ = tick.tick().await;
+                sleep(tick_rate).await;
                 if self.sender.is_closed() {
                     break;
                 }

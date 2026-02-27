@@ -1,5 +1,5 @@
 use tokio::sync::mpsc;
-use crate::event::{Event, AppEvent, Metrics, spawn};
+use crate::event::{Event, AppEvent, Metrics, spawn, sleep};
 
 pub fn spawn_metrics_loop(
     sender: mpsc::UnboundedSender<Event>,
@@ -60,8 +60,10 @@ pub fn spawn_metrics_loop(
                     metrics.tps = tx_count as f64; // Temporarily store total tx count to calculate TPS later
                     let _ = sender.send(Event::App(AppEvent::MetricsUpdate(metrics)));
                 }
+            } else {
+                let _ = sender.send(Event::App(AppEvent::NodeStatusUpdate(crate::event::NodeStatus::Disconnected)));
             }
-            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            sleep(std::time::Duration::from_secs(2)).await;
         }
     });
 }

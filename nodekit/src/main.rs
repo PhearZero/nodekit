@@ -1,13 +1,7 @@
-mod service;
-
 use clap::Parser;
-use crate::app::App;
-use crate::cmd::Cli;
-
-pub mod app;
-pub mod cmd;
-pub mod event;
-pub mod ui;
+use nodekit::app::App;
+use nodekit::cmd::Cli;
+use nodekit::service;
 
 #[cfg_attr(not(target_arch = "wasm32"), tokio::main)]
 #[cfg_attr(target_arch = "wasm32", tokio::main(flavor = "current_thread"))]
@@ -18,14 +12,14 @@ async fn main() -> color_eyre::Result<()> {
 
     if let Some(command) = cli.command {
         match command {
-            crate::cmd::Commands::Debug => println!("Debugging..."),
-            crate::cmd::Commands::Start => println!("Starting..."),
-            crate::cmd::Commands::Stop => println!("Stopping..."),
-            crate::cmd::Commands::Upgrade => println!("Upgrading..."),
-            crate::cmd::Commands::Catchup { command } => println!("Catchup: {:?}", command),
-            crate::cmd::Commands::Configure { command } => println!("Configure: {:?}", command),
-            crate::cmd::Commands::Telemetry { command } => println!("Telemetry: {:?}", command),
-            crate::cmd::Commands::Web { port } => {
+            nodekit::cmd::Commands::Debug => println!("Debugging..."),
+            nodekit::cmd::Commands::Start => println!("Starting..."),
+            nodekit::cmd::Commands::Stop => println!("Stopping..."),
+            nodekit::cmd::Commands::Upgrade => println!("Upgrading..."),
+            nodekit::cmd::Commands::Catchup { command } => println!("Catchup: {:?}", command),
+            nodekit::cmd::Commands::Configure { command } => println!("Configure: {:?}", command),
+            nodekit::cmd::Commands::Telemetry { command } => println!("Telemetry: {:?}", command),
+            nodekit::cmd::Commands::Web { port } => {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     println!(

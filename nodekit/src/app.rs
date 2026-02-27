@@ -1,9 +1,13 @@
-use crate::event::{AppEvent, Event, EventHandler, ModalType, Metrics, BackendKeyEvent, BackendKeyCode, AlgodStatus, AlgodVersion, AlgodAccount, AlgodParticipationKey, spawn};
+use crate::event::{AppEvent, Event, EventHandler, ModalType, Metrics, BackendKeyEvent, BackendKeyCode, AlgodStatus, AlgodVersion, AlgodAccount, AlgodParticipationKey, spawn, Instant, sleep};
 use crate::ui::viewport::ViewportComponent;
 use ratatui::prelude::Backend;
 use ratatui::{
     Terminal,
 };
+#[cfg(target_arch = "wasm32")]
+use std::rc::Rc;
+#[cfg(target_arch = "wasm32")]
+use std::cell::RefCell;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub enum Page {
@@ -112,13 +116,15 @@ impl App {
         ).expect("Failed to create HTTP client");
         let client = algod_client::AlgodClient::new(std::sync::Arc::new(http_client));
 
+        #[allow(unused_mut)]
         let mut p2p_enabled = false;
+        #[allow(unused_mut)]
         let mut p2p_hybrid_enabled = false;
 
-        if let Some(dir) = data_dir {
+        if let Some(_dir) = data_dir {
             #[cfg(not(target_arch = "wasm32"))]
             {
-                let config_path = std::path::Path::new(dir).join("config.json");
+                let config_path = std::path::Path::new(_dir).join("config.json");
                 if let Ok(content) = std::fs::read_to_string(config_path) {
                     if let Ok(config) = serde_json::from_str::<serde_json::Value>(&content) {
                         p2p_enabled = config["EnableP2P"].as_bool().unwrap_or(false);
@@ -168,32 +174,40 @@ impl App {
     }
 
     /// Run the application's main loop.
-    pub async fn run<B: Backend + 'static>(mut self, mut terminal: Terminal<B>) -> color_eyre::Result<()> where <B as Backend>::Error: std::error::Error + Send + Sync + 'static {
+    pub async fn run<B: Backend + 'static>(self, terminal: Terminal<B>) -> color_eyre::Result<()> where <B as Backend>::Error: std::error::Error + Send + Sync + 'static {
         #[cfg(target_arch = "wasm32")]
         {
             use ratzilla::WebRenderer;
             let sender = self.events.get_sender();
-            terminal.on_key_event(move |evt| {
+            terminal.on_key_event(move |evt: ratzilla::event::KeyEvent| {
                 let _ = sender.send(Event::Key(evt.into()));
             });
 
-            terminal.draw_web(move |frame| {
-                let viewport = ViewportComponent::new(&self);
+            let app = Rc::new(RefCell::new(self));
+            let app_clone = app.clone();
+
+            terminal.draw_web(move |frame: &mut ratatui::Frame| {
+                let mut app = app_clone.borrow_mut();
+                let viewport = ViewportComponent::new(&app);
                 frame.render_widget(&viewport, frame.area());
 
-                while let Ok(event) = self.events.try_next() {
+                let mut events_processed = 0;
+                while let Ok(event) = app.events.try_next() {
+                    events_processed += 1;
                     match event {
-                        Event::Tick => self.tick(),
+                        Event::Tick => app.tick(),
                         Event::Key(key_event) => {
-                            let _ = self.handle_key_events(key_event);
+                            let _ = app.handle_key_events(key_event);
                         }
                         Event::App(app_event) => {
-                            // We can't await here because draw_web's closure is not async.
-                            // However, we can use try_recv/try_next and process events.
-                            // For async events, we might need to use a separate task or similar.
-                            // But handle_app_event is async. 
-                            // This is a known challenge when porting to WASM/ratzilla.
+                            let app_inner = app_clone.clone();
+                            spawn(async move {
+                                app_inner.borrow_mut().handle_app_event(app_event).await;
+                            });
                         }
+                    }
+                    if events_processed > 20 {
+                        break;
                     }
                 }
             });
@@ -202,17 +216,19 @@ impl App {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            while self.running {
+            let mut terminal = terminal;
+            let mut app = self;
+            while app.running {
                 terminal.draw(|frame| {
-                    let viewport = ViewportComponent::new(&self);
+                    let viewport = ViewportComponent::new(&app);
                     frame.render_widget(&viewport, frame.area());
                 })?;
-                match self.events.next().await? {
-                    Event::Tick => self.tick(),
+                match app.events.next().await? {
+                    Event::Tick => app.tick(),
                     Event::Key(key_event) => {
-                        self.handle_key_events(key_event)?
+                        app.handle_key_events(key_event)?
                     }
-                    Event::App(app_event) => self.handle_app_event(app_event).await,
+                    Event::App(app_event) => app.handle_app_event(app_event).await,
                 }
             }
             Ok(())
@@ -327,7 +343,7 @@ impl App {
                 }
             }
             AppEvent::MetricsUpdate(new_metrics) => {
-                let now = std::time::Instant::now();
+                let now = Instant::now();
                 if let Some(last_ts) = self.metrics.last_ts {
                     let diff = now.duration_since(last_ts).as_secs_f64();
                     if diff > 0.0 {
@@ -795,13 +811,13 @@ impl App {
         last: u64,
     ) {
         let timeout = std::time::Duration::from_secs(20 * 60);
-        let start = std::time::Instant::now();
+        let start = Instant::now();
         loop {
             if start.elapsed() > timeout {
                 let _ = sender.send(Event::App(AppEvent::GenerateError("Timeout waiting for key generation".to_string())));
                 break;
             }
-            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            sleep(std::time::Duration::from_secs(2)).await;
             match client.get_participation_keys().await {
                 Ok(keys) => {
                     if let Some(key) = keys.iter().find(|k| k.address == address && k.key.vote_first_valid == first && k.key.vote_last_valid == last) {

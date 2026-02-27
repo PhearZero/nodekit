@@ -123,6 +123,8 @@ impl<'a> Widget for &AccountsPage<'a> {
 
             let expires = if *self.node_status == NodeStatus::FastCatchup {
                 "SYNCING".to_string()
+            } else if *self.node_status == NodeStatus::Disconnected {
+                "OFFLINE".to_string()
             } else if non_resident && !is_expired && expires_round != 0 {
                 "⚠ NON-RESIDENT-KEY".to_string()
             } else if expires_round == 0 {
