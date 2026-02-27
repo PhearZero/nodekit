@@ -7,12 +7,12 @@ use ratatui::{
 };
 use qrcode::QrCode;
 use base64::{engine::general_purpose, Engine as _};
-use crate::event::KeyInfoMode;
+use crate::event::{KeyInfoMode, AlgodParticipationKey};
 
 use crate::ui::modals::ModalMetadata;
 
 pub struct KeyInfoModal<'a> {
-    pub key: &'a algod_client::models::ParticipationKey,
+    pub key: &'a AlgodParticipationKey,
     pub mode: &'a KeyInfoMode,
     pub shortlink: &'a Option<String>,
     pub just_generated: bool,
@@ -124,7 +124,7 @@ impl<'a> ModalMetadata for KeyInfoModal<'a> {
 
 impl<'a> KeyInfoModal<'a> {
     pub fn new(
-        key: &'a algod_client::models::ParticipationKey,
+        key: &'a AlgodParticipationKey,
         mode: &'a KeyInfoMode,
         shortlink: &'a Option<String>,
         just_generated: bool,

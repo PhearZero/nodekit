@@ -9,7 +9,8 @@ pub mod cmd;
 pub mod event;
 pub mod ui;
 
-#[tokio::main]
+#[cfg_attr(not(target_arch = "wasm32"), tokio::main)]
+#[cfg_attr(target_arch = "wasm32", tokio::main(flavor = "current_thread"))]
 async fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
 
@@ -45,22 +46,29 @@ async fn main() -> color_eyre::Result<()> {
     }
 
     // If no command is provided, run the TUI
-    let terminal = ratatui::init();
-    let app = App::new(&cli.url, &cli.token, cli.data_dir.as_deref(), cli.no_incentives);
-    
-    // Start background services
-    service::metrics::spawn_metrics_loop(
-        app.events.get_sender(),
-        cli.url.clone(),
-        cli.token.clone(),
-    );
-    service::node::spawn_node_loop(
-        app.events.get_sender(),
-        app.client.clone(),
-        None,
-    );
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let terminal = ratatui::init();
+        let app = App::new(&cli.url, &cli.token, cli.data_dir.as_deref(), cli.no_incentives);
+        
+        // Start background services
+        service::metrics::spawn_metrics_loop(
+            app.events.get_sender(),
+            cli.url.clone(),
+            cli.token.clone(),
+        );
+        service::node::spawn_node_loop(
+            app.events.get_sender(),
+            app.client.clone(),
+            None,
+        );
 
-    let result = app.run(terminal).await;
-    ratatui::restore();
-    result
+        let result = app.run(terminal).await;
+        ratatui::restore();
+        result
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        Ok(())
+    }
 }

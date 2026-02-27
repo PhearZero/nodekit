@@ -1,4 +1,4 @@
-use crate::event::NodeStatus;
+use crate::event::{NodeStatus, AlgodAccount, AlgodParticipationKey};
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Rect},
@@ -9,8 +9,8 @@ use ratatui::{
 use chrono::{Utc, Duration};
 
 pub struct AccountsPage<'a> {
-    pub accounts: &'a [algod_client::models::Account],
-    pub keys: &'a [algod_client::models::ParticipationKey],
+    pub accounts: &'a [AlgodAccount],
+    pub keys: &'a [AlgodParticipationKey],
     pub last_round: u64,
     pub avg_round_time: u64,
     pub selected_index: usize,
@@ -19,8 +19,8 @@ pub struct AccountsPage<'a> {
 
 impl<'a> AccountsPage<'a> {
     pub fn new(
-        accounts: &'a [algod_client::models::Account],
-        keys: &'a [algod_client::models::ParticipationKey],
+        accounts: &'a [AlgodAccount],
+        keys: &'a [AlgodParticipationKey],
         last_round: u64,
         avg_round_time: u64,
         selected_index: usize,

@@ -29,11 +29,12 @@ dependencies = [
 [[package]]
 name = "algod_client"
 version = "0.0.1"
-source = "git+https://github.com/algorandecosystem/algokit-core.git#ab083e5a4e6b8d20832ae3111f0c5ac84814b35f"
+source = "git+https://github.com/phearzero/algokit-core.git?branch=feat%2Fwasm32#6ed44934dc0d95b893ac95488cb7d7e64f1a037b"
 dependencies = [
  "algokit_http_client",
  "algokit_transact",
  "base64",
+ "getrandom 0.2.17",
  "rmp-serde",
  "rmpv",
  "serde",
@@ -47,9 +48,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "algokit_crypto"
+version = "0.1.0"
+source = "git+https://github.com/phearzero/algokit-core.git?branch=feat%2Fwasm32#6ed44934dc0d95b893ac95488cb7d7e64f1a037b"
+dependencies = [
+ "async-trait",
+ "cryptoxide",
+ "getrandom 0.4.1",
+ "signature",
+ "zeroize",
+]
+
+[[package]]
 name = "algokit_http_client"
 version = "0.1.0"
-source = "git+https://github.com/algorandecosystem/algokit-core.git#ab083e5a4e6b8d20832ae3111f0c5ac84814b35f"
+source = "git+https://github.com/phearzero/algokit-core.git?branch=feat%2Fwasm32#6ed44934dc0d95b893ac95488cb7d7e64f1a037b"
 dependencies = [
  "async-trait",
  "reqwest",
@@ -61,8 +74,10 @@ dependencies = [
 [[package]]
 name = "algokit_transact"
 version = "0.1.0"
-source = "git+https://github.com/algorandecosystem/algokit-core.git#ab083e5a4e6b8d20832ae3111f0c5ac84814b35f"
+source = "git+https://github.com/phearzero/algokit-core.git?branch=feat%2Fwasm32#6ed44934dc0d95b893ac95488cb7d7e64f1a037b"
 dependencies = [
+ "algokit_crypto",
+ "async-trait",
  "base32",
  "base64",
  "derive_builder",
@@ -616,6 +631,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "cryptoxide"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "382ce8820a5bb815055d3553a610e8cb542b2d767bbacea99038afda96cd760d"
+
+[[package]]
 name = "csscolorparser"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1092,8 +1113,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff2abc00be7fca6ebc474524697ae276ad847ad0a6b3faa4bcb027e9a4614ad0"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -1115,10 +1138,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "139ef39800118c7683f2fd3c98c1b23c09ae076556b435f8e9064ae108aaeeec"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "r-efi",
  "wasip2",
  "wasip3",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -1756,12 +1781,14 @@ dependencies = [
  "algod_client",
  "algokit_http_client",
  "algokit_transact",
+ "async-trait",
  "base64",
  "chrono",
  "clap",
  "color-eyre",
  "crossterm",
  "futures",
+ "getrandom 0.2.17",
  "qrcode",
  "ratatui",
  "ratzilla",
@@ -1770,6 +1797,8 @@ dependencies = [
  "serde_json",
  "tokio",
  "url",
+ "uuid",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]
@@ -2739,6 +2768,12 @@ dependencies = [
  "errno",
  "libc",
 ]
+
+[[package]]
+name = "signature"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de"
 
 [[package]]
 name = "siphasher"
@@ -4115,6 +4150,20 @@ name = "zeroize"
 version = "1.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b97154e67e32c85465826e8bcc1c59429aaaf107c1e4a9e53c8d8ccd5eff88d0"
+dependencies = [
+ "zeroize_derive",
+]
+
+[[package]]
+name = "zeroize_derive"
+version = "1.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85a5b4158499876c763cb03bc4e49185d3cccbabb15b33c627f7884f43db852e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.114",
+]
 
 [[package]]
 name = "zerotrie"

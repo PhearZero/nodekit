@@ -1,5 +1,5 @@
 use base64::Engine;
-use crate::event::{AppEvent, Event};
+use crate::event::{AppEvent, Event, spawn};
 use tokio::sync::mpsc;
 
 pub fn fetch_online_shortlink(
@@ -9,7 +9,7 @@ pub fn fetch_online_shortlink(
     account_incentive_eligible: bool,
     account_status: String,
 ) {
-    tokio::spawn(async move {
+    spawn(async move {
         let network = version.map(|v| v.genesis_id).unwrap_or_else(|| "mainnet-v1.0".to_string());
         let lora_network = network.replace("-v1.0", "").replace("-v1", "");
         let lora_network = if lora_network == "dockernet" || lora_network == "tuinet" {
@@ -30,12 +30,13 @@ pub fn fetch_online_shortlink(
         });
 
         let client = reqwest::Client::new();
-        if let Ok(resp) = client.post("http://b.nodekit.run/online")
+        let res = client.post("http://b.nodekit.run/online")
             .json(&body)
             .send()
-            .await 
-        {
-            if let Ok(json) = resp.json::<serde_json::Value>().await {
+            .await;
+        if let Ok(resp) = res {
+            let json_res = resp.json::<serde_json::Value>().await;
+            if let Ok(json) = json_res {
                 if let Some(id) = json["id"].as_str() {
                     let mut suffix = "";
                     if account_incentive_eligible && account_status == "Online" {
@@ -54,7 +55,7 @@ pub fn fetch_offline_shortlink(
     version: Option<algod_client::models::Version>,
     address: String,
 ) {
-    tokio::spawn(async move {
+    spawn(async move {
         let network = version.map(|v| v.genesis_id).unwrap_or_else(|| "mainnet-v1.0".to_string());
         let lora_network = network.replace("-v1.0", "").replace("-v1", "");
         let lora_network = if lora_network == "dockernet" || lora_network == "tuinet" {
@@ -69,12 +70,13 @@ pub fn fetch_offline_shortlink(
         });
 
         let client = reqwest::Client::new();
-        if let Ok(resp) = client.post("http://b.nodekit.run/offline")
+        let res = client.post("http://b.nodekit.run/offline")
             .json(&body)
             .send()
-            .await 
-        {
-            if let Ok(json) = resp.json::<serde_json::Value>().await {
+            .await;
+        if let Ok(resp) = res {
+            let json_res = resp.json::<serde_json::Value>().await;
+            if let Ok(json) = json_res {
                 if let Some(id) = json["id"].as_str() {
                     let link = format!("https://b.nodekit.run/{}", id);
                     let _ = sender.send(Event::App(AppEvent::ShortlinkUpdate(link)));

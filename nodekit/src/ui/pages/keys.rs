@@ -1,3 +1,4 @@
+use crate::event::{AlgodParticipationKey, AlgodAccountParticipation};
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Rect},
@@ -7,16 +8,16 @@ use ratatui::{
 };
 
 pub struct KeysPage<'a> {
-    pub keys: &'a [algod_client::models::ParticipationKey],
+    pub keys: &'a [AlgodParticipationKey],
     pub selected_index: usize,
-    pub participation: &'a Option<algod_client::models::AccountParticipation>,
+    pub participation: &'a Option<AlgodAccountParticipation>,
 }
 
 impl<'a> KeysPage<'a> {
     pub fn new(
-        keys: &'a [algod_client::models::ParticipationKey],
+        keys: &'a [AlgodParticipationKey],
         selected_index: usize,
-        participation: &'a Option<algod_client::models::AccountParticipation>,
+        participation: &'a Option<AlgodAccountParticipation>,
     ) -> Self {
         Self {
             keys,

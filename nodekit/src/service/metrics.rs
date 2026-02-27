@@ -1,5 +1,5 @@
 use tokio::sync::mpsc;
-use crate::event::{Event, AppEvent, Metrics};
+use crate::event::{Event, AppEvent, Metrics, spawn};
 
 pub fn spawn_metrics_loop(
     sender: mpsc::UnboundedSender<Event>,
@@ -7,13 +7,14 @@ pub fn spawn_metrics_loop(
     token: String,
 ) {
     let metrics_url = format!("{}/metrics", url.trim_end_matches('/'));
-    tokio::spawn(async move {
+    spawn(async move {
         let client = reqwest::Client::new();
         loop {
-            if let Ok(resp) = client.get(&metrics_url)
+            let res = client.get(&metrics_url)
                 .header("X-Algo-API-Token", &token)
                 .send()
-                .await {
+                .await;
+            if let Ok(resp) = res {
                 if let Ok(text) = resp.text().await {
                     let mut metrics = Metrics::default();
                     let mut tx_count = 0;

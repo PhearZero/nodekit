@@ -1,8 +1,8 @@
-use crate::event::{AppEvent, Event, EventHandler, ModalType, Metrics};
+use crate::event::{AppEvent, Event, EventHandler, ModalType, Metrics, BackendKeyEvent, BackendKeyCode, AlgodStatus, AlgodVersion, AlgodAccount, AlgodParticipationKey, spawn};
 use crate::ui::viewport::ViewportComponent;
+use ratatui::prelude::Backend;
 use ratatui::{
-    DefaultTerminal,
-    crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
+    Terminal,
 };
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
@@ -31,15 +31,15 @@ pub struct App {
     /// Algod client
     pub client: algod_client::AlgodClient,
     /// Latest status
-    pub status: Option<algod_client::models::WaitForBlock>,
+    pub status: Option<AlgodStatus>,
     /// Version info
-    pub version: Option<algod_client::models::Version>,
+    pub version: Option<AlgodVersion>,
     /// Update available
     pub update_available: bool,
     /// Accounts
-    pub accounts: Vec<algod_client::models::Account>,
+    pub accounts: Vec<AlgodAccount>,
     /// Participation keys
-    pub keys: Vec<algod_client::models::ParticipationKey>,
+    pub keys: Vec<AlgodParticipationKey>,
     /// Selected account address
     pub selected_account: Option<String>,
     /// Selected account index
@@ -47,7 +47,7 @@ pub struct App {
     /// Selected key index
     pub selected_key_index: usize,
     /// Selected key
-    pub selected_key: Option<algod_client::models::ParticipationKey>,
+    pub selected_key: Option<AlgodParticipationKey>,
     /// Was the selected key just generated?
     pub selected_key_just_generated: bool,
     /// Last error message
@@ -116,11 +116,14 @@ impl App {
         let mut p2p_hybrid_enabled = false;
 
         if let Some(dir) = data_dir {
-            let config_path = std::path::Path::new(dir).join("config.json");
-            if let Ok(content) = std::fs::read_to_string(config_path) {
-                if let Ok(config) = serde_json::from_str::<serde_json::Value>(&content) {
-                    p2p_enabled = config["EnableP2P"].as_bool().unwrap_or(false);
-                    p2p_hybrid_enabled = config["EnableP2PHybridMode"].as_bool().unwrap_or(false);
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                let config_path = std::path::Path::new(dir).join("config.json");
+                if let Ok(content) = std::fs::read_to_string(config_path) {
+                    if let Ok(config) = serde_json::from_str::<serde_json::Value>(&content) {
+                        p2p_enabled = config["EnableP2P"].as_bool().unwrap_or(false);
+                        p2p_hybrid_enabled = config["EnableP2PHybridMode"].as_bool().unwrap_or(false);
+                    }
                 }
             }
         }
@@ -165,25 +168,55 @@ impl App {
     }
 
     /// Run the application's main loop.
-    pub async fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<()> {
-        while self.running {
-            terminal.draw(|frame| {
+    pub async fn run<B: Backend + 'static>(mut self, mut terminal: Terminal<B>) -> color_eyre::Result<()> where <B as Backend>::Error: std::error::Error + Send + Sync + 'static {
+        #[cfg(target_arch = "wasm32")]
+        {
+            use ratzilla::WebRenderer;
+            let sender = self.events.get_sender();
+            terminal.on_key_event(move |evt| {
+                let _ = sender.send(Event::Key(evt.into()));
+            });
+
+            terminal.draw_web(move |frame| {
                 let viewport = ViewportComponent::new(&self);
                 frame.render_widget(&viewport, frame.area());
-            })?;
-            match self.events.next().await? {
-                Event::Tick => self.tick(),
-                Event::Crossterm(event) => {
-                    if let crossterm::event::Event::Key(key_event) = event {
-                        if key_event.kind == crossterm::event::KeyEventKind::Press {
-                            self.handle_key_events(key_event)?
+
+                while let Ok(event) = self.events.try_next() {
+                    match event {
+                        Event::Tick => self.tick(),
+                        Event::Key(key_event) => {
+                            let _ = self.handle_key_events(key_event);
+                        }
+                        Event::App(app_event) => {
+                            // We can't await here because draw_web's closure is not async.
+                            // However, we can use try_recv/try_next and process events.
+                            // For async events, we might need to use a separate task or similar.
+                            // But handle_app_event is async. 
+                            // This is a known challenge when porting to WASM/ratzilla.
                         }
                     }
                 }
-                Event::App(app_event) => self.handle_app_event(app_event).await,
-            }
+            });
+            Ok(())
         }
-        Ok(())
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            while self.running {
+                terminal.draw(|frame| {
+                    let viewport = ViewportComponent::new(&self);
+                    frame.render_widget(&viewport, frame.area());
+                })?;
+                match self.events.next().await? {
+                    Event::Tick => self.tick(),
+                    Event::Key(key_event) => {
+                        self.handle_key_events(key_event)?
+                    }
+                    Event::App(app_event) => self.handle_app_event(app_event).await,
+                }
+            }
+            Ok(())
+        }
     }
 
     pub async fn handle_app_event(&mut self, app_event: AppEvent) {
@@ -320,10 +353,11 @@ impl App {
             AppEvent::GenerateKeys { address, last_round_delta } => {
                 let sender = self.events.get_sender();
                 let client = self.client.clone();
-                tokio::spawn(async move {
+                spawn(async move {
                     // We need to get current status to set first/last correctly if we want to match Go logic exactly
                     // Go: first = lastRound, last = lastRound + duration_rounds
-                    let status = match client.get_status().await {
+                    let status_res = client.get_status().await;
+                    let status = match status_res {
                         Ok(s) => s,
                         Err(e) => {
                             let _ = sender.send(Event::App(AppEvent::GenerateError(format!("Failed to get status: {:?}", e))));
@@ -334,7 +368,8 @@ impl App {
                     let first = status.last_round;
                     let last = first + last_round_delta;
 
-                    match client.generate_participation_keys(&address, None, first, last).await {
+                    let gen_res = client.generate_participation_keys(&address, None, first, last).await;
+                    match gen_res {
                         Ok(_) => {
                             Self::poll_for_generated_key(sender, client, address, first, last).await;
                         }
@@ -372,8 +407,9 @@ impl App {
                 let sender = self.events.get_sender();
                 let client = self.client.clone();
                 let id_clone = id.clone();
-                tokio::spawn(async move {
-                    match client.delete_participation_key_by_id(&id).await {
+                spawn(async move {
+                    let res = client.delete_participation_key_by_id(&id).await;
+                    match res {
                         Ok(_) => {
                             let _ = sender.send(Event::App(AppEvent::DeleteSuccess(id_clone)));
                         }
@@ -393,8 +429,9 @@ impl App {
                 // Trigger a poll for keys immediately
                 let sender = self.events.get_sender();
                 let client = self.client.clone();
-                tokio::spawn(async move {
-                    if let Ok(keys) = client.get_participation_keys().await {
+                spawn(async move {
+                    let keys_res = client.get_participation_keys().await;
+                    if let Ok(keys) = keys_res {
                         let _ = sender.send(Event::App(AppEvent::KeysUpdate(keys)));
                     }
                 });
@@ -403,7 +440,7 @@ impl App {
     }
 
     /// Handles the key events and updates the state of [`App`].
-    pub fn handle_key_events(&mut self, key_event: KeyEvent) -> color_eyre::Result<()> {
+    pub fn handle_key_events(&mut self, key_event: BackendKeyEvent) -> color_eyre::Result<()> {
         if self.handle_modal_key_events(key_event)? {
             return Ok(());
         }
@@ -411,12 +448,12 @@ impl App {
         self.handle_global_key_events(key_event)
     }
 
-    fn handle_modal_key_events(&mut self, key_event: KeyEvent) -> color_eyre::Result<bool> {
+    fn handle_modal_key_events(&mut self, key_event: BackendKeyEvent) -> color_eyre::Result<bool> {
         if let Some(modal) = &self.active_modal {
             match modal {
                 ModalType::Partkey => {
                     match key_event.code {
-                        KeyCode::Char('g') => {
+                        BackendKeyCode::Char('g') => {
                             self.generate_step = GenerateStep::Address;
                             self.generate_address = self.selected_account.clone().unwrap_or_default();
                             self.generate_duration = "1".to_string();
@@ -424,10 +461,10 @@ impl App {
                             self.generate_error = None;
                             self.active_modal = Some(ModalType::Generate);
                         }
-                        KeyCode::Esc | KeyCode::Char('q') => {
+                        BackendKeyCode::Esc | BackendKeyCode::Char('q') => {
                             self.active_modal = None;
                         }
-                        KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
+                        BackendKeyCode::Char('c' | 'C') if key_event.ctrl => {
                             self.events.send(AppEvent::Quit)
                         }
                         _ => {}
@@ -436,10 +473,10 @@ impl App {
                 }
                 ModalType::Catchup => {
                     match key_event.code {
-                        KeyCode::Esc | KeyCode::Char('q') => {
+                        BackendKeyCode::Esc | BackendKeyCode::Char('q') => {
                             self.events.send(AppEvent::Quit);
                         }
-                        KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
+                        BackendKeyCode::Char('c' | 'C') if key_event.ctrl => {
                             self.events.send(AppEvent::Quit)
                         }
                         _ => {}
@@ -448,18 +485,18 @@ impl App {
                 }
                 ModalType::Lagging => {
                     match key_event.code {
-                        KeyCode::Char('y') => {
+                        BackendKeyCode::Char('y') => {
                             self.events.send(AppEvent::StartFastCatchup);
                             self.active_modal = None;
                         }
-                        KeyCode::Char('n') | KeyCode::Esc => {
+                        BackendKeyCode::Char('n') | BackendKeyCode::Esc => {
                             self.lagging_dismissed = true;
                             self.active_modal = None;
                         }
-                        KeyCode::Char('q') => {
+                        BackendKeyCode::Char('q') => {
                             self.events.send(AppEvent::Quit);
                         }
-                        KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
+                        BackendKeyCode::Char('c' | 'C') if key_event.ctrl => {
                             self.events.send(AppEvent::Quit)
                         }
                         _ => {}
@@ -468,13 +505,13 @@ impl App {
                 }
                 ModalType::DeleteConfirm => {
                     match key_event.code {
-                        KeyCode::Char('y') => {
+                        BackendKeyCode::Char('y') => {
                             if let Some(key) = &self.selected_key {
                                 self.active_modal = Some(ModalType::Deleting);
                                 self.events.send(AppEvent::DeleteKey(key.id.clone()));
                             }
                         }
-                        KeyCode::Char('n') | KeyCode::Esc => {
+                        BackendKeyCode::Char('n') | BackendKeyCode::Esc => {
                             self.active_modal = Some(ModalType::KeyInfo);
                         }
                         _ => {}
@@ -483,36 +520,36 @@ impl App {
                 }
                 ModalType::KeyInfo => {
                     match key_event.code {
-                        KeyCode::Char('d') => {
+                        BackendKeyCode::Char('d') => {
                             if self.selected_key.is_some() {
                                 self.active_modal = Some(ModalType::DeleteConfirm);
                             }
                         }
-                        KeyCode::Char('r') => {
+                        BackendKeyCode::Char('r') => {
                             if !self.is_key_active_selected() {
                                 self.key_info_mode = crate::event::KeyInfoMode::Online;
                             }
                         }
-                        KeyCode::Char('t') => {
+                        BackendKeyCode::Char('t') => {
                             if self.is_key_active_selected() {
                                 self.key_info_mode = crate::event::KeyInfoMode::Online;
                             }
                         }
-                        KeyCode::Char('s') => {
+                        BackendKeyCode::Char('s') => {
                             self.key_info_mode = match self.key_info_mode {
                                 crate::event::KeyInfoMode::Online => crate::event::KeyInfoMode::QR,
                                 crate::event::KeyInfoMode::QR => crate::event::KeyInfoMode::Online,
                                 _ => self.key_info_mode.clone(),
                             };
                         }
-                        KeyCode::Char('v') | KeyCode::Tab => {
+                        BackendKeyCode::Char('v') | BackendKeyCode::Tab => {
                             self.key_info_mode = match self.key_info_mode {
                                 crate::event::KeyInfoMode::Text => crate::event::KeyInfoMode::Online,
                                 crate::event::KeyInfoMode::Online => crate::event::KeyInfoMode::QR,
                                 crate::event::KeyInfoMode::QR => crate::event::KeyInfoMode::Text,
                             };
                         }
-                        KeyCode::Esc => {
+                        BackendKeyCode::Esc => {
                             if self.key_info_mode != crate::event::KeyInfoMode::Text {
                                 self.key_info_mode = crate::event::KeyInfoMode::Text;
                             } else {
@@ -525,7 +562,7 @@ impl App {
                 }
                 ModalType::Generate => {
                     match key_event.code {
-                        KeyCode::Char(c) => {
+                        BackendKeyCode::Char(c) => {
                             match self.generate_step {
                                 GenerateStep::Address => {
                                     self.generate_address.push(c);
@@ -544,7 +581,7 @@ impl App {
                                 _ => {}
                             }
                         }
-                        KeyCode::Backspace => {
+                        BackendKeyCode::Backspace => {
                             match self.generate_step {
                                 GenerateStep::Address => {
                                     self.generate_address.pop();
@@ -555,7 +592,7 @@ impl App {
                                 _ => {}
                             }
                         }
-                        KeyCode::Enter => {
+                        BackendKeyCode::Enter => {
                             match self.generate_step {
                                 GenerateStep::Address => {
                                     if !self.generate_address.is_empty() {
@@ -582,7 +619,7 @@ impl App {
                                 _ => {}
                             }
                         }
-                        KeyCode::Esc => {
+                        BackendKeyCode::Esc => {
                             self.active_modal = None;
                         }
                         _ => {}
@@ -590,7 +627,7 @@ impl App {
                     return Ok(true);
                 }
                 _ => {
-                    if key_event.code == KeyCode::Esc || key_event.code == KeyCode::Char('q') {
+                    if key_event.code == BackendKeyCode::Esc || key_event.code == BackendKeyCode::Char('q') {
                         self.active_modal = None;
                         return Ok(true);
                     }
@@ -600,9 +637,9 @@ impl App {
         Ok(false)
     }
 
-    fn handle_global_key_events(&mut self, key_event: KeyEvent) -> color_eyre::Result<()> {
+    fn handle_global_key_events(&mut self, key_event: BackendKeyEvent) -> color_eyre::Result<()> {
         match key_event.code {
-            KeyCode::Char('g') => {
+            BackendKeyCode::Char('g') => {
                 // Match Go TUI logic: only open modal when node is stable and round time is available
                 if self.node_status == crate::event::NodeStatus::Stable && self.metrics.round_time > 0 {
                     // Ensure an account is selected if we are on the accounts page
@@ -622,20 +659,20 @@ impl App {
                     self.active_modal = Some(ModalType::Exception);
                 }
             }
-            KeyCode::Esc => {
+            BackendKeyCode::Esc => {
                 if self.current_page == Page::Keys {
                     self.current_page = Page::Accounts;
                 } else {
                     self.events.send(AppEvent::Quit);
                 }
             }
-            KeyCode::Char('q') => {
+            BackendKeyCode::Char('q') => {
                 self.events.send(AppEvent::Quit);
             }
-            KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
+            BackendKeyCode::Char('c' | 'C') if key_event.ctrl => {
                 self.events.send(AppEvent::Quit)
             }
-            KeyCode::Right => {
+            BackendKeyCode::Right => {
                 if self.current_page == Page::Accounts && !self.accounts.is_empty() {
                     let address = self.accounts[self.selected_account_index].address.clone();
                     self.selected_account = Some(address);
@@ -645,27 +682,27 @@ impl App {
                     self.events.send(AppEvent::Increment);
                 }
             }
-            KeyCode::Left => {
+            BackendKeyCode::Left => {
                 if self.current_page == Page::Keys {
                     self.events.send(AppEvent::ShowAccounts);
                 } else {
                     self.events.send(AppEvent::Decrement);
                 }
             }
-            KeyCode::Char('a') => {
+            BackendKeyCode::Char('a') => {
                 self.events.send(AppEvent::ShowAccounts);
             }
-            KeyCode::Char('k') => {
+            BackendKeyCode::Char('k') => {
                 self.events.send(AppEvent::ShowKeys);
             }
-            KeyCode::Up => {
+            BackendKeyCode::Up => {
                 if self.current_page == Page::Accounts && !self.accounts.is_empty() {
                     self.selected_account_index = self.selected_account_index.saturating_sub(1);
                 } else if self.current_page == Page::Keys && !self.keys.is_empty() {
                     self.selected_key_index = self.selected_key_index.saturating_sub(1);
                 }
             }
-            KeyCode::Down => {
+            BackendKeyCode::Down => {
                 if self.current_page == Page::Accounts && !self.accounts.is_empty() {
                     self.selected_account_index = (self.selected_account_index + 1).min(self.accounts.len() - 1);
                 } else if self.current_page == Page::Keys && !self.keys.is_empty() {
@@ -679,7 +716,7 @@ impl App {
                     }
                 }
             }
-            KeyCode::Enter => {
+            BackendKeyCode::Enter => {
                 if self.current_page == Page::Accounts && !self.accounts.is_empty() {
                     let address = self.accounts[self.selected_account_index].address.clone();
                     self.selected_account = Some(address);
@@ -701,7 +738,7 @@ impl App {
                     }
                 }
             }
-            KeyCode::Char('h') => {
+            BackendKeyCode::Char('h') => {
                 self.events.send(AppEvent::ShowModal(ModalType::Hybrid));
             }
             _ => {}
@@ -729,7 +766,7 @@ impl App {
         self.counter = self.counter.saturating_sub(1);
     }
 
-    pub fn is_key_active(&self, key: &algod_client::models::ParticipationKey) -> bool {
+    pub fn is_key_active(&self, key: &AlgodParticipationKey) -> bool {
         if let Some(addr) = &self.selected_account {
             if let Some(account) = self.accounts.iter().find(|a| &a.address == addr) {
                 if let Some(part) = &account.participation {

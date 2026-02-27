@@ -6,10 +6,11 @@ use ratatui::{
     widgets::{Paragraph, Widget},
 };
 
+use crate::event::{AlgodStatus};
 use crate::ui::modals::ModalMetadata;
 
 pub struct CatchupModal<'a> {
-    pub status: &'a Option<algod_client::models::WaitForBlock>,
+    pub status: &'a Option<AlgodStatus>,
 }
 
 impl<'a> ModalMetadata for CatchupModal<'a> {
@@ -46,7 +47,7 @@ impl<'a> ModalMetadata for CatchupModal<'a> {
 }
 
 impl<'a> CatchupModal<'a> {
-    pub fn new(status: &'a Option<algod_client::models::WaitForBlock>) -> Self {
+    pub fn new(status: &'a Option<AlgodStatus>) -> Self {
         Self { status }
     }
 }

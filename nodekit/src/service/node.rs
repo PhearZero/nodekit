@@ -1,12 +1,12 @@
 use tokio::sync::mpsc;
-use crate::event::{Event, AppEvent};
+use crate::event::{Event, AppEvent, AlgodVersion, spawn};
 
 pub fn spawn_node_loop(
     sender: mpsc::UnboundedSender<Event>,
     client: algod_client::AlgodClient,
-    initial_version: Option<algod_client::models::Version>,
+    initial_version: Option<AlgodVersion>,
 ) {
-    tokio::spawn(async move {
+    spawn(async move {
         let mut last_round = None;
         let mut round_times = std::collections::VecDeque::with_capacity(100);
         let mut last_block_time: Option<std::time::Instant> = None;
@@ -27,13 +27,14 @@ pub fn spawn_node_loop(
 
                         // Check for updates
                         let sender_clone = sender.clone();
-                        tokio::spawn(async move {
+                        spawn(async move {
                             let update_url = format!("https://api.github.com/repos/algorand/go-algorand/releases/latest");
                             let client = reqwest::Client::builder()
                                 .user_agent("nodekit")
                                 .build()
                                 .unwrap();
-                            if let Ok(resp) = client.get(update_url).send().await {
+                            let res = client.get(update_url).send().await;
+                            if let Ok(resp) = res {
                                 if let Ok(release) = resp.json::<serde_json::Value>().await {
                                     if let Some(tag) = release["tag_name"].as_str() {
                                         // tag is usually "vX.Y.Z-stable" or similar
@@ -145,7 +146,7 @@ pub fn spawn_node_loop(
                         let sender_clone = sender.clone();
                         let version_clone = current_version.clone();
                         let current_round = status.last_round;
-                        tokio::spawn(async move {
+                        spawn(async move {
                             let network = version_clone.map(|v| v.genesis_id).unwrap_or_else(|| "mainnet-v1.0".to_string());
                             let network_short = if network.contains("testnet") {
                                 "testnet"
@@ -164,7 +165,8 @@ pub fn spawn_node_loop(
                                 _ => "https://algorand-catchpoints.s3.us-east-2.amazonaws.com/channel/mainnet/latest.catchpoint",
                             };
 
-                            if let Ok(resp) = reqwest::get(url).await {
+                            let res = reqwest::get(url).await;
+                            if let Ok(resp) = res {
                                 if let Ok(catchpoint) = resp.text().await {
                                     let catchpoint = catchpoint.trim();
                                     if let Some(sharp_idx) = catchpoint.find('#') {
@@ -267,9 +269,9 @@ pub fn start_fast_catchup(
     sender: mpsc::UnboundedSender<Event>,
     base_url: String,
     api_token: String,
-    version_opt: Option<algod_client::models::Version>,
+    version_opt: Option<AlgodVersion>,
 ) {
-    tokio::spawn(async move {
+    spawn(async move {
         let network = version_opt.map(|v| v.genesis_id).unwrap_or_else(|| "mainnet-v1.0".to_string());
         let network_short = if network.contains("testnet") {
             "testnet"
