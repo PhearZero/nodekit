@@ -232,6 +232,8 @@ pub enum AppEvent {
     DeleteKey(String),
     DeleteSuccess(String),
     ShortlinkUpdate(String),
+    LoadingMessage(String),
+    WifiConnected,
 }
 
 #[derive(Clone, Debug, PartialEq)]

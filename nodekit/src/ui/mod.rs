@@ -13,6 +13,7 @@ pub mod pages;
 pub mod protocol;
 pub mod status;
 pub mod viewport;
+pub mod loading;
 
 impl Widget for &App {
     /// Renders the user interface widgets.

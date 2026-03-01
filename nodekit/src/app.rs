@@ -88,6 +88,14 @@ pub struct App {
     pub incentives_disabled: bool,
     /// Success message for key info modal
     pub key_info_success_message: Option<String>,
+    /// Is loading?
+    pub is_loading: bool,
+    /// Loading start time
+    pub loading_start_time: Option<Instant>,
+    /// Loading message
+    pub loading_message: Option<String>,
+    /// WiFi connected
+    pub wifi_connected: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -170,6 +178,10 @@ impl App {
             current_shortlink: None,
             incentives_disabled,
             key_info_success_message: None,
+            is_loading: true,
+            loading_start_time: Some(Instant::now()),
+            loading_message: None,
+            wifi_connected: false,
         }
     }
 
@@ -182,10 +194,16 @@ impl App {
         // This is a simplified loop for embedded
         let mut terminal = terminal;
         let mut app = self;
+        let mut last_loading = app.is_loading;
         
         loop {
             #[cfg(any(target_arch = "xtensa", target_arch = "riscv32"))]
             unsafe { esp_idf_svc::sys::esp_task_wdt_reset(); }
+
+            if last_loading && !app.is_loading {
+                let _ = terminal.clear();
+            }
+            last_loading = app.is_loading;
 
             terminal.draw(|frame: &mut ratatui::Frame| {
                 let viewport = ViewportComponent::new(&app);
@@ -678,6 +696,12 @@ impl App {
                     }
                 });
             }
+            AppEvent::LoadingMessage(msg) => {
+                self.loading_message = Some(msg);
+            }
+            AppEvent::WifiConnected => {
+                self.wifi_connected = true;
+            }
         }
     }
 
@@ -993,6 +1017,15 @@ impl App {
     /// The tick event is where you can update the state of your application with any logic that
     /// needs to be updated at a fixed frame rate. E.g. polling a server, updating an animation.
     pub fn tick(&mut self) {
+        self.increment_counter();
+        if self.is_loading {
+            if let Some(start) = self.loading_start_time {
+                // Open if 1s has passed AND (we have status OR WiFi is connected)
+                if start.elapsed().as_secs() >= 1 && (self.status.is_some() || self.wifi_connected) {
+                    self.is_loading = false;
+                }
+            }
+        }
     }
 
     /// Set running to false to quit the application.

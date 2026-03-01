@@ -34,6 +34,12 @@ impl<'a> ViewportComponent<'a> {
 
 impl<'a> Widget for &ViewportComponent<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        if self.app.is_loading {
+            let loading = crate::ui::loading::LoadingComponent::new(self.app);
+            loading.render(area, buf);
+            return;
+        }
+
         let is_compact = area.width < 90;
 
         let (status_area, protocol_area, page_area) = if is_compact {
