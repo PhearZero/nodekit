@@ -1,10 +1,11 @@
 use crate::event::{AlgodParticipationKey, AlgodAccountParticipation};
+use crate::ui::theme;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Rect},
     style::{Color, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Cell, Row, Table, Widget},
+    widgets::{Block, Cell, Row, Table, Widget},
 };
 
 pub struct KeysPage<'a> {
@@ -30,8 +31,9 @@ impl<'a> KeysPage<'a> {
 impl<'a> Widget for &KeysPage<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let block = Block::bordered()
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(Color::Indexed(4))); // Color "4" is Blue
+            .border_set(theme::get_border_set())
+            .border_type(theme::get_border_type())
+            .border_style(Style::default().fg(Color::Blue)); // Standard Blue
 
         // Titles and Navigation
         let title = Span::styled(" Keys ", Style::default());
@@ -55,7 +57,7 @@ impl<'a> Widget for &KeysPage<'a> {
 
         let header_cells = ["ID", "Address", "Active", "Last Vote", "Last Block Proposal"]
             .into_iter()
-            .map(|h| Cell::from(h).style(Style::default().fg(Color::Indexed(240))));
+            .map(|h| Cell::from(h).style(Style::default().fg(Color::DarkGray)));
         let header = Row::new(header_cells)
             .height(1)
             .bottom_margin(1);
@@ -95,8 +97,8 @@ impl<'a> Widget for &KeysPage<'a> {
         .header(header)
         .row_highlight_style(
             Style::default()
-                .fg(Color::Indexed(229))
-                .bg(Color::Indexed(4)),
+                .fg(Color::White)
+                .bg(Color::Blue),
         )
         .highlight_symbol(">> ");
 

@@ -18,7 +18,7 @@ impl ModalMetadata for DeleteConfirmModal {
         "( Delete Key )".to_string()
     }
     fn border_color(&self) -> Color {
-        Color::Indexed(9) // Red
+        Color::Red
     }
     fn controls(&self) -> String {
         "( (y)es | (n)o )".to_string()
@@ -73,8 +73,14 @@ impl Widget for &DeleteConfirmModal {
             Line::from(""),
         ];
 
+        let warning_prefix = if cfg!(any(target_arch = "xtensa", target_arch = "riscv32", feature = "simulator")) {
+            "!"
+        } else {
+            "⚠"
+        };
+
         if self.is_active {
-            text.push(Line::from(Span::styled("⚠ WARNING: This key is currently active!", Style::default().fg(Color::Red))));
+            text.push(Line::from(Span::styled(format!("{} WARNING: This key is currently active!", warning_prefix), Style::default().fg(Color::Red))));
             text.push(Line::from("You must take your node offline before deleting."));
             text.push(Line::from(""));
         }

@@ -18,7 +18,7 @@ impl<'a> ModalMetadata for CatchupModal<'a> {
         "Fast Catchup".to_string()
     }
     fn border_color(&self) -> Color {
-        Color::Indexed(7)
+        Color::Gray
     }
     fn width(&self, _available_width: u16, _available_height: u16) -> u16 {
         let mut max_width = 52; // Base width for the message lines (without leading space)
@@ -75,7 +75,7 @@ impl<'a> ModalMetadata for &CatchupModal<'a> {
 
 impl<'a> Widget for &CatchupModal<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let style = Style::default().fg(Color::Indexed(14));
+        let style = Style::default().fg(Color::Cyan);
         let mut lines = vec![
             Line::from("Please wait while your node syncs with the network.").style(style),
             Line::from("This process can take up to an hour.").style(style),

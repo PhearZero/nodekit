@@ -1,7 +1,9 @@
+#[cfg(not(any(target_arch = "xtensa", target_arch = "riscv32")))]
 use base64::Engine;
 use crate::event::{AppEvent, Event, spawn};
 use tokio::sync::mpsc;
 
+#[cfg(not(any(target_arch = "xtensa", target_arch = "riscv32")))]
 pub fn fetch_online_shortlink(
     sender: mpsc::UnboundedSender<Event>,
     version: Option<algod_client::models::Version>,
@@ -50,6 +52,18 @@ pub fn fetch_online_shortlink(
     });
 }
 
+#[cfg(any(target_arch = "xtensa", target_arch = "riscv32"))]
+pub fn fetch_online_shortlink(
+    _sender: mpsc::UnboundedSender<Event>,
+    _version: Option<algod_client::models::Version>,
+    _key: algod_client::models::ParticipationKey,
+    _account_incentive_eligible: bool,
+    _account_status: String,
+) {
+    // No-op for now on embedded
+}
+
+#[cfg(not(any(target_arch = "xtensa", target_arch = "riscv32")))]
 pub fn fetch_offline_shortlink(
     sender: mpsc::UnboundedSender<Event>,
     version: Option<algod_client::models::Version>,
@@ -84,4 +98,13 @@ pub fn fetch_offline_shortlink(
             }
         }
     });
+}
+
+#[cfg(any(target_arch = "xtensa", target_arch = "riscv32"))]
+pub fn fetch_offline_shortlink(
+    _sender: mpsc::UnboundedSender<Event>,
+    _version: Option<algod_client::models::Version>,
+    _address: String,
+) {
+    // No-op for now on embedded
 }

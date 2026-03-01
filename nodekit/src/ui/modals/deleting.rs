@@ -15,7 +15,7 @@ impl ModalMetadata for DeletingModal {
         "( Deleting Key )".to_string()
     }
     fn border_color(&self) -> Color {
-        Color::Indexed(9) // Red
+        Color::Red
     }
     fn width(&self, _available_width: u16, _available_height: u16) -> u16 {
         40

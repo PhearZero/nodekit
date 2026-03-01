@@ -1,9 +1,10 @@
+use crate::ui::theme;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Widget},
+    widgets::{Block, Widget},
 };
 
 use crate::event::Metrics;
@@ -30,8 +31,9 @@ impl<'a> Widget for &ProtocolComponent<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let block = Block::bordered()
             .title(" Protocol ")
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(Color::Indexed(5))); // Magenta
+            .border_set(theme::get_border_set())
+            .border_type(theme::get_border_type())
+            .border_style(Style::default().fg(Color::Magenta)); // Magenta
 
         let inner_area = block.inner(area);
         block.render(area, buf);
@@ -53,7 +55,7 @@ impl<'a> Widget for &ProtocolComponent<'a> {
         }).unwrap_or_else(|| self.status.as_ref().map(|s| s.last_version.clone()).unwrap_or_else(|| "v0.0.0".to_string()));
         
         let row1_left = Line::from(vec![
-            Span::styled(" Node: ", Style::default().fg(Color::Indexed(12))),
+            Span::styled(" Node: ", Style::default().fg(Color::LightBlue)),
             Span::raw(version_str),
         ]);
         buf.set_line(chunks[0].x, chunks[0].y, &row1_left, chunks[0].width);
@@ -69,7 +71,7 @@ impl<'a> Widget for &ProtocolComponent<'a> {
         // Row 3: Network
         let network = self.version.as_ref().map(|v| v.genesis_id.clone()).unwrap_or_else(|| "N/A".to_string());
         let row3 = Line::from(vec![
-            Span::styled(" Network: ", Style::default().fg(Color::Indexed(12))),
+            Span::styled(" Network: ", Style::default().fg(Color::LightBlue)),
             Span::raw(network),
         ]);
         buf.set_line(chunks[2].x, chunks[2].y, &row3, chunks[2].width);
@@ -81,7 +83,7 @@ impl<'a> Widget for &ProtocolComponent<'a> {
             "No".to_string()
         };
         let row5 = Line::from(vec![
-            Span::styled(" Protocol Upgrade: ", Style::default().fg(Color::Indexed(12))),
+            Span::styled(" Protocol Upgrade: ", Style::default().fg(Color::LightBlue)),
             Span::raw(upgrade),
         ]);
         buf.set_line(chunks[4].x, chunks[4].y, &row5, chunks[4].width);

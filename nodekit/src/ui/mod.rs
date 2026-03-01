@@ -7,6 +7,7 @@ use ratatui::{
 
 use crate::app::App;
 
+pub mod theme;
 pub mod modals;
 pub mod pages;
 pub mod protocol;

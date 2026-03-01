@@ -1,9 +1,12 @@
-use clap::{Parser, Subcommand};
+use clap::Parser;
+#[cfg(not(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32", feature = "simulator")))]
+use clap::Subcommand;
 
 #[derive(Parser, Debug)]
 #[command(name = "nodekit")]
 #[command(about = "Manage Algorand nodes from the command line", long_about = None)]
 pub struct Cli {
+    #[cfg(not(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32", feature = "simulator")))]
     #[command(subcommand)]
     pub command: Option<Commands>,
 
@@ -24,6 +27,7 @@ pub struct Cli {
     pub data_dir: Option<String>,
 }
 
+#[cfg(not(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32", feature = "simulator")))]
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     /// Debug the current node
@@ -57,6 +61,7 @@ pub enum Commands {
     },
 }
 
+#[cfg(not(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32", feature = "simulator")))]
 #[derive(Subcommand, Debug)]
 pub enum CatchupCommands {
     /// Start fast catchup
@@ -67,6 +72,7 @@ pub enum CatchupCommands {
     Status,
 }
 
+#[cfg(not(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32", feature = "simulator")))]
 #[derive(Subcommand, Debug)]
 pub enum ConfigureCommands {
     /// Configure algod
@@ -77,6 +83,7 @@ pub enum ConfigureCommands {
     Telemetry,
 }
 
+#[cfg(not(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32", feature = "simulator")))]
 #[derive(Subcommand, Debug)]
 pub enum TelemetryCommands {
     /// Enable telemetry

@@ -14,11 +14,12 @@ use crate::ui::modals::delete_confirm::DeleteConfirmModal;
 use crate::ui::modals::deleting::DeletingModal;
 use crate::ui::modals::key_info::KeyInfoModal;
 use crate::ui::modals::ModalMetadata;
+use crate::ui::theme;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
     text::Line,
-    widgets::{Block, BorderType, Clear, Widget},
+    widgets::{Block, Clear, Widget},
 };
 
 pub struct ViewportComponent<'a> {
@@ -236,7 +237,8 @@ where
     &'a T: ModalMetadata + Widget
 {
     let mut block = Block::bordered()
-        .border_type(BorderType::Rounded)
+        .border_set(theme::get_border_set())
+        .border_type(theme::get_border_type())
         .border_style(ratatui::style::Style::default().fg(modal.border_color()));
 
     block = block.title(format!(" {} ", modal.title()));

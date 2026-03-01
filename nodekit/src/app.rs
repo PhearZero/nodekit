@@ -174,7 +174,76 @@ impl App {
     }
 
     /// Run the application's main loop.
-    pub async fn run<B: Backend + 'static>(self, terminal: Terminal<B>) -> color_eyre::Result<()> where <B as Backend>::Error: std::error::Error + Send + Sync + 'static {
+    pub async fn run<B: Backend>(self, terminal: Terminal<B>) -> color_eyre::Result<()> where <B as Backend>::Error: std::error::Error + Send + Sync + 'static {
+    #[cfg(any(target_arch = "xtensa", target_arch = "riscv32"))]
+    {
+        use futures::FutureExt;
+        log::info!("Starting App::run embedded loop...");
+        // This is a simplified loop for embedded
+        let mut terminal = terminal;
+        let mut app = self;
+        
+        loop {
+            #[cfg(any(target_arch = "xtensa", target_arch = "riscv32"))]
+            unsafe { esp_idf_svc::sys::esp_task_wdt_reset(); }
+
+            terminal.draw(|frame: &mut ratatui::Frame| {
+                let viewport = ViewportComponent::new(&app);
+                frame.render_widget(&viewport, frame.area());
+            })?;
+            
+            app.tick();
+            
+            while let Some(event) = app.events.next().now_or_never() {
+                if let Ok(event) = event {
+                    match event {
+                        Event::Tick => app.tick(),
+                        Event::Key(key_event) => {
+                            let _ = app.handle_key_events(key_event);
+                        }
+                        Event::App(app_event) => {
+                            let _ = app.handle_app_event(app_event).await;
+                        }
+                        Event::LeftButton => {
+                            let _ = app.handle_key_events(BackendKeyEvent {
+                                code: BackendKeyCode::Left,
+                                ctrl: false,
+                                alt: false,
+                                shift: false,
+                            });
+                        }
+                        Event::RightButton => {
+                            let _ = app.handle_key_events(BackendKeyEvent {
+                                code: BackendKeyCode::Right,
+                                ctrl: false,
+                                alt: false,
+                                shift: false,
+                            });
+                        }
+                        Event::SelectButton => {
+                            let _ = app.handle_key_events(BackendKeyEvent {
+                                code: BackendKeyCode::Enter,
+                                ctrl: false,
+                                alt: false,
+                                shift: false,
+                            });
+                        }
+                        Event::Touch(x, y) => {
+                            let _ = app.handle_touch_event(x, y);
+                        }
+                    }
+                }
+            }
+
+            if !app.running {
+                break;
+            }
+            
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        return Ok(());
+    }
+
         #[cfg(target_arch = "wasm32")]
         {
             use ratzilla::WebRenderer;
@@ -205,6 +274,7 @@ impl App {
                                 app_inner.borrow_mut().handle_app_event(app_event).await;
                             });
                         }
+                        Event::LeftButton | Event::RightButton | Event::SelectButton | Event::Touch(_, _) => {}
                     }
                     if events_processed > 20 {
                         break;
@@ -214,7 +284,7 @@ impl App {
             Ok(())
         }
 
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32")))]
         {
             let mut terminal = terminal;
             let mut app = self;
@@ -229,9 +299,165 @@ impl App {
                         app.handle_key_events(key_event)?
                     }
                     Event::App(app_event) => app.handle_app_event(app_event).await,
+                    Event::LeftButton => {
+                        app.handle_key_events(BackendKeyEvent {
+                            code: BackendKeyCode::Left,
+                            ctrl: false,
+                            alt: false,
+                            shift: false,
+                        })?;
+                    }
+                    Event::RightButton => {
+                        app.handle_key_events(BackendKeyEvent {
+                            code: BackendKeyCode::Right,
+                            ctrl: false,
+                            alt: false,
+                            shift: false,
+                        })?;
+                    }
+                    Event::SelectButton => {
+                        app.handle_key_events(BackendKeyEvent {
+                            code: BackendKeyCode::Enter,
+                            ctrl: false,
+                            alt: false,
+                            shift: false,
+                        })?;
+                    }
+                    Event::Touch(x, y) => {
+                        app.handle_touch_event(x, y);
+                    }
                 }
             }
             Ok(())
+        }
+    }
+
+    #[cfg(feature = "simulator")]
+    pub async fn run_simulator(
+        mut self,
+        mut terminal: ratatui::Terminal<mousefood::EmbeddedBackend<'_, embedded_graphics_simulator::SimulatorDisplay<embedded_graphics::pixelcolor::Rgb888>, embedded_graphics::pixelcolor::Rgb888>>,
+        mut window: embedded_graphics_simulator::Window,
+    ) -> color_eyre::Result<()> {
+        use embedded_graphics_simulator::SimulatorEvent;
+        'running: loop {
+            terminal.draw(|frame: &mut ratatui::Frame| {
+                let viewport = ViewportComponent::new(&self);
+                frame.render_widget(&viewport, frame.area());
+            })?;
+
+            window.update(terminal.backend().display());
+
+            for event in window.events() {
+                match event {
+                    SimulatorEvent::Quit => break 'running,
+                    SimulatorEvent::KeyDown { keycode, .. } => {
+                        use embedded_graphics_simulator::sdl2::Keycode;
+                        match keycode {
+                            Keycode::Left => {
+                                let _ = self.events.get_sender().send(Event::LeftButton);
+                            }
+                            Keycode::Right => {
+                                let _ = self.events.get_sender().send(Event::RightButton);
+                            }
+                            Keycode::Return | Keycode::Space => {
+                                let _ = self.events.get_sender().send(Event::SelectButton);
+                            }
+                            _ => {}
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            while let Ok(event) = self.events.try_next() {
+                match event {
+                    Event::Tick => self.tick(),
+                    Event::Key(key_event) => {
+                        self.handle_key_events(key_event)?;
+                    }
+                    Event::App(app_event) => self.handle_app_event(app_event).await,
+                    Event::LeftButton => {
+                        self.handle_key_events(BackendKeyEvent {
+                            code: BackendKeyCode::Left,
+                            ctrl: false,
+                            alt: false,
+                            shift: false,
+                        })?;
+                    }
+                    Event::RightButton => {
+                        self.handle_key_events(BackendKeyEvent {
+                            code: BackendKeyCode::Right,
+                            ctrl: false,
+                            alt: false,
+                            shift: false,
+                        })?;
+                    }
+                    Event::SelectButton => {
+                        self.handle_key_events(BackendKeyEvent {
+                            code: BackendKeyCode::Enter,
+                            ctrl: false,
+                            alt: false,
+                            shift: false,
+                        })?;
+                    }
+                    Event::Touch(x, y) => {
+                        self.handle_touch_event(x, y);
+                    }
+                }
+            }
+
+            if !self.running {
+                break 'running;
+            }
+
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        Ok(())
+    }
+
+    pub fn handle_touch_event(&mut self, x: u16, y: u16) {
+        // Basic mapping of touch to key events for the Advance 5 display (800x480)
+        // If we are in Keys page, and touch is in the top left, go back
+        if self.current_page == Page::Keys && y < 100 && x < 200 {
+            let _ = self.handle_key_events(BackendKeyEvent {
+                code: BackendKeyCode::Esc,
+                ctrl: false,
+                alt: false,
+                shift: false,
+            });
+        } else if y < 100 {
+            // Top bar touch: navigate between pages
+            if x < 400 {
+                self.events.send(AppEvent::ShowAccounts);
+            } else {
+                self.events.send(AppEvent::ShowKeys);
+            }
+        } else if y > 380 {
+            // Bottom bar touch: maybe quit or other action?
+        } else {
+            // Main area: scroll or select
+            if x < 200 {
+                let _ = self.handle_key_events(BackendKeyEvent {
+                    code: BackendKeyCode::Up,
+                    ctrl: false,
+                    alt: false,
+                    shift: false,
+                });
+            } else if x > 600 {
+                let _ = self.handle_key_events(BackendKeyEvent {
+                    code: BackendKeyCode::Down,
+                    ctrl: false,
+                    alt: false,
+                    shift: false,
+                });
+            } else {
+                let _ = self.handle_key_events(BackendKeyEvent {
+                    code: BackendKeyCode::Enter,
+                    ctrl: false,
+                    alt: false,
+                    shift: false,
+                });
+            }
         }
     }
 

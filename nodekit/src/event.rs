@@ -1,9 +1,12 @@
 use color_eyre::eyre::OptionExt;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32")))]
 use futures::{FutureExt, StreamExt};
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32")))]
 use ratatui::crossterm::event::{Event as CrosstermEvent, KeyEvent as CrosstermKeyEvent, KeyCode as CrosstermKeyCode, KeyModifiers as CrosstermKeyModifiers};
 use std::time::Duration;
+#[cfg(not(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32")))]
+use tokio::sync::mpsc;
+#[cfg(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32"))]
 use tokio::sync::mpsc;
 
 pub type AlgodStatus = algod_client::models::WaitForBlock;
@@ -15,7 +18,15 @@ pub type AlgodAccountParticipation = algod_client::models::AccountParticipation;
 /// Spawns a task in a target-agnostic way.
 /// On native, it uses `tokio::spawn`.
 /// On WASM, it uses `wasm_bindgen_futures::spawn_local`.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32")))]
+pub fn spawn<F>(future: F)
+where
+    F: std::future::Future<Output = ()> + Send + 'static,
+{
+    tokio::spawn(future);
+}
+
+#[cfg(any(target_arch = "xtensa", target_arch = "riscv32"))]
 pub fn spawn<F>(future: F)
 where
     F: std::future::Future<Output = ()> + Send + 'static,
@@ -58,7 +69,7 @@ pub enum BackendKeyCode {
     Unidentified,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32")))]
 impl From<CrosstermKeyCode> for BackendKeyCode {
     fn from(code: CrosstermKeyCode) -> Self {
         match code {
@@ -115,7 +126,7 @@ pub struct BackendKeyEvent {
     pub shift: bool,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32")))]
 impl From<CrosstermKeyEvent> for BackendKeyEvent {
     fn from(event: CrosstermKeyEvent) -> Self {
         Self {
@@ -127,7 +138,7 @@ impl From<CrosstermKeyEvent> for BackendKeyEvent {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32")))]
 impl BackendKeyEvent {
     fn map_code(code: CrosstermKeyCode) -> BackendKeyCode {
         code.into()
@@ -161,6 +172,14 @@ pub enum Event {
     ///
     /// Use this event to emit custom events that are specific to your application.
     App(AppEvent),
+    /// Left button pressed (for embedded/simulator)
+    LeftButton,
+    /// Right button pressed (for embedded/simulator)
+    RightButton,
+    /// Select button pressed (for embedded/simulator)
+    SelectButton,
+    /// Touch event (for embedded)
+    Touch(u16, u16),
 }
 
 /// Application events.
@@ -274,8 +293,7 @@ pub enum NodeStatus {
     Disconnected,
 }
 
-/// Terminal event handler.
-#[derive(Debug)]
+#[cfg(not(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32")))]
 pub struct EventHandler {
     /// Event sender channel.
     sender: mpsc::UnboundedSender<Event>,
@@ -283,6 +301,15 @@ pub struct EventHandler {
     receiver: mpsc::UnboundedReceiver<Event>,
 }
 
+#[cfg(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32"))]
+pub struct EventHandler {
+    /// Event sender channel.
+    sender: mpsc::UnboundedSender<Event>,
+    /// Event receiver channel.
+    receiver: mpsc::UnboundedReceiver<Event>,
+}
+
+#[cfg(not(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32")))]
 impl EventHandler {
     /// Constructs a new instance of [`EventHandler`] and spawns a new thread to handle events.
     pub fn new() -> Self {
@@ -331,6 +358,45 @@ impl EventHandler {
     }
 }
 
+#[cfg(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32"))]
+impl EventHandler {
+    pub fn new() -> Self {
+        let (sender, receiver) = mpsc::unbounded_channel();
+        // Tick generator
+        let sender_clone = sender.clone();
+        spawn(async move {
+            #[cfg(not(target_arch = "wasm32"))]
+            let mut interval = tokio::time::interval(Duration::from_millis(1000 / 30));
+            
+            loop {
+                #[cfg(not(target_arch = "wasm32"))]
+                interval.tick().await;
+                #[cfg(target_arch = "wasm32")]
+                sleep(Duration::from_millis(1000 / 30)).await;
+
+                let _ = sender_clone.send(Event::Tick);
+            }
+        });
+        Self { sender, receiver }
+    }
+
+    pub async fn next(&mut self) -> color_eyre::Result<Event> {
+        self.receiver.recv().await.ok_or_eyre("Failed to receive event")
+    }
+
+    pub fn try_next(&mut self) -> color_eyre::Result<Event> {
+        self.receiver.try_recv().map_err(|_| color_eyre::eyre::eyre!("No events available"))
+    }
+
+    pub fn send(&self, app_event: AppEvent) {
+        let _ = self.sender.send(Event::App(app_event));
+    }
+
+    pub fn get_sender(&self) -> mpsc::UnboundedSender<Event> {
+        self.sender.clone()
+    }
+}
+
 /// A thread that handles reading crossterm events and emitting tick events on a regular schedule.
 struct EventTask {
     /// Event sender channel.
@@ -349,7 +415,7 @@ impl EventTask {
     async fn run(self) -> color_eyre::Result<()> {
         let tick_rate = Duration::from_secs_f64(1.0 / TICK_FPS);
 
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32")))]
         {
             let mut tick = tokio::time::interval(tick_rate);
             let mut reader = crossterm::event::EventStream::new();

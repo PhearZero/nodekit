@@ -1,9 +1,10 @@
+use crate::ui::theme;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Widget},
+    widgets::{Block, Widget},
 };
 
 use crate::event::{NodeStatus, Metrics};
@@ -37,8 +38,9 @@ impl<'a> StatusComponent<'a> {
 impl<'a> Widget for &StatusComponent<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let block = Block::bordered()
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(Color::Indexed(5))); // Color "5" is Magenta
+            .border_set(theme::get_border_set())
+            .border_type(theme::get_border_type())
+            .border_style(Style::default().fg(Color::Magenta)); // Standard Magenta
 
         // Titles in the border
         let left_title = Span::styled(
@@ -47,7 +49,7 @@ impl<'a> Widget for &StatusComponent<'a> {
         );
         let right_title = Span::styled(
             " Status ",
-            Style::default().fg(Color::Indexed(5)),
+            Style::default().fg(Color::Magenta),
         );
 
         // We can't easily put two titles in the same border with Ratatui's default Block 
@@ -74,7 +76,7 @@ impl<'a> Widget for &StatusComponent<'a> {
 
         let last_round = self.status.as_ref().map(|s| s.last_round).unwrap_or(0);
         let row1_left = Line::from(vec![
-            Span::styled(" Latest Round: ", Style::default().fg(Color::Indexed(12))),
+            Span::styled(" Latest Round: ", Style::default().fg(Color::LightBlue)),
             Span::raw(last_round.to_string()),
         ]);
 
@@ -133,7 +135,7 @@ impl<'a> Widget for &StatusComponent<'a> {
             format!("{:.2}", self.metrics.tps)
         };
         let row4_left = Line::from(vec![
-            Span::styled(" TPS:        ", Style::default().fg(Color::Indexed(12))),
+            Span::styled(" TPS:        ", Style::default().fg(Color::LightBlue)),
             Span::raw(tps_text),
         ]);
 
@@ -164,7 +166,7 @@ impl<'a> Widget for &StatusComponent<'a> {
             format!("{:.2}s", self.metrics.round_time as f64 / 1000.0)
         };
         let row5_left = Line::from(vec![
-            Span::styled(" Round time: ", Style::default().fg(Color::Indexed(12))),
+            Span::styled(" Round time: ", Style::default().fg(Color::LightBlue)),
             Span::raw(round_time_text),
         ]);
 

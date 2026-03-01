@@ -37,12 +37,12 @@ impl<'a> ModalMetadata for KeyInfoModal<'a> {
     }
     fn border_color(&self) -> Color {
         match self.mode {
-            KeyInfoMode::Text => Color::Indexed(3),
+            KeyInfoMode::Text => Color::Yellow,
             KeyInfoMode::Online | KeyInfoMode::QR => {
                 if self.is_active {
-                    Color::Indexed(9) // Red (Matching Go's Register Offline)
+                    Color::Red
                 } else {
-                    Color::Indexed(2) // Green (Matching Go's Register Online)
+                    Color::Green
                 }
             }
         }
@@ -248,7 +248,7 @@ impl<'a> Widget for &KeyInfoModal<'a> {
                 let label_style = Style::default().fg(Color::Cyan);
                 let value_style = Style::default().fg(Color::White);
                 let key_label_style = Style::default().fg(Color::Yellow);
-                let round_label_style = Style::default().fg(Color::Indexed(5)); // Purple/Magenta
+                let round_label_style = Style::default().fg(Color::Magenta);
 
                 let mut current_idx = 0;
                 if let Some(msg) = self.success_message {
@@ -354,12 +354,22 @@ impl<'a> Widget for &KeyInfoModal<'a> {
                             let top = code[(x, y)];
                             let bottom = if y + 1 < width { code[(x, y + 1)] } else { qrcode::types::Color::Light };
 
-                            let ch = match (top, bottom) {
-                                (qrcode::types::Color::Dark, qrcode::types::Color::Dark) => '█',
-                                (qrcode::types::Color::Dark, qrcode::types::Color::Light) => '▀',
-                                (qrcode::types::Color::Light, qrcode::types::Color::Dark) => '▄',
-                                (qrcode::types::Color::Light, qrcode::types::Color::Light) => ' ',
-                            };
+                    let ch = match (top, bottom) {
+                        #[cfg(any(target_arch = "xtensa", target_arch = "riscv32", feature = "simulator"))]
+                        (qrcode::types::Color::Dark, qrcode::types::Color::Dark) => '#',
+                        #[cfg(any(target_arch = "xtensa", target_arch = "riscv32", feature = "simulator"))]
+                        (qrcode::types::Color::Dark, qrcode::types::Color::Light) => '^',
+                        #[cfg(any(target_arch = "xtensa", target_arch = "riscv32", feature = "simulator"))]
+                        (qrcode::types::Color::Light, qrcode::types::Color::Dark) => 'v',
+
+                        #[cfg(not(any(target_arch = "xtensa", target_arch = "riscv32", feature = "simulator")))]
+                        (qrcode::types::Color::Dark, qrcode::types::Color::Dark) => '█',
+                        #[cfg(not(any(target_arch = "xtensa", target_arch = "riscv32", feature = "simulator")))]
+                        (qrcode::types::Color::Dark, qrcode::types::Color::Light) => '▀',
+                        #[cfg(not(any(target_arch = "xtensa", target_arch = "riscv32", feature = "simulator")))]
+                        (qrcode::types::Color::Light, qrcode::types::Color::Dark) => '▄',
+                        (qrcode::types::Color::Light, qrcode::types::Color::Light) => ' ',
+                    };
                             line.push(ch);
                         }
                         qr_lines.push(Line::from(line));

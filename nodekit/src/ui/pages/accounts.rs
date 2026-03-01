@@ -1,10 +1,11 @@
 use crate::event::{NodeStatus, AlgodAccount, AlgodParticipationKey};
+use crate::ui::theme;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Rect},
     style::{Color, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Cell, Row, Table, Widget},
+    widgets::{Block, Cell, Row, Table, Widget},
 };
 use chrono::{Utc, Duration};
 
@@ -40,8 +41,9 @@ impl<'a> AccountsPage<'a> {
 impl<'a> Widget for &AccountsPage<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let block = Block::bordered()
-            .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(Color::Indexed(6))); // Color "6" is Cyan/Teal-ish
+            .border_set(theme::get_border_set())
+            .border_type(theme::get_border_type())
+            .border_style(Style::default().fg(Color::Cyan)); // Use standard Cyan
 
         // Titles and Navigation
         let title = Span::styled(" Accounts ", Style::default());
@@ -65,7 +67,7 @@ impl<'a> Widget for &AccountsPage<'a> {
 
         let header_cells = ["Account", "Status", "Incentive", "Expires", "Balance"]
             .into_iter()
-            .map(|h| Cell::from(h).style(Style::default().fg(Color::Indexed(240))));
+            .map(|h| Cell::from(h).style(Style::default().fg(Color::DarkGray)));
         let header = Row::new(header_cells)
             .height(1)
             .bottom_margin(1);
@@ -121,12 +123,18 @@ impl<'a> Widget for &AccountsPage<'a> {
                 non_resident = true;
             }
 
+            let (warning_prefix, sync_text, offline_text) = if cfg!(any(target_arch = "xtensa", target_arch = "riscv32", feature = "simulator")) {
+                ("!", "SYNCING", "OFFLINE")
+            } else {
+                ("⚠", "SYNCING", "OFFLINE")
+            };
+
             let expires = if *self.node_status == NodeStatus::FastCatchup {
-                "SYNCING".to_string()
+                sync_text.to_string()
             } else if *self.node_status == NodeStatus::Disconnected {
-                "OFFLINE".to_string()
+                offline_text.to_string()
             } else if non_resident && !is_expired && expires_round != 0 {
-                "⚠ NON-RESIDENT-KEY".to_string()
+                format!("{} NON-RESIDENT-KEY", warning_prefix)
             } else if expires_round == 0 {
                 "N/A".to_string()
             } else if is_expired {
@@ -140,7 +148,7 @@ impl<'a> Widget for &AccountsPage<'a> {
 
                 // Warning if expires within a week
                 if expires_at < Utc::now() + Duration::days(7) {
-                    expires_str = format!("⚠ {}", expires_str);
+                    expires_str = format!("{} {}", warning_prefix, expires_str);
                 }
                 expires_str
             };
@@ -170,8 +178,8 @@ impl<'a> Widget for &AccountsPage<'a> {
         .header(header)
         .row_highlight_style(
             Style::default()
-                .fg(Color::Indexed(229))
-                .bg(Color::Indexed(6)),
+                .fg(Color::White)
+                .bg(Color::Cyan),
         )
         .highlight_symbol(">> ");
 

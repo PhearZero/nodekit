@@ -18,6 +18,15 @@ path = "src/main.rs"
 name = "web"
 path = "src/bin/web.rs"
 
+[[bin]]
+name = "esp"
+path = "src/bin/esp.rs"
+required-features = []
+
+[features]
+simulator = ["dep:embedded-graphics-simulator", "mousefood/std"]
+mock-simulator = ["mousefood/std"]
+
 [dependencies]
 futures = "0.3.31"
 color-eyre = "0.6.3"
@@ -28,11 +37,44 @@ base64 = "0.22.1"
 chrono = "0.4.39"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-algokit_transact = { git = "https://github.com/phearzero/algokit-core.git", version = "0.1.0", branch = "feat/wasm32" }
-algod_client = { git = "https://github.com/phearzero/algokit-core.git", version = "0.0.1", branch = "feat/wasm32" }
-algokit_http_client = { git = "https://github.com/phearzero/algokit-core.git", version = "0.1.0", features = ["default_client"], branch = "feat/wasm32" }
+algod_client = { git = "https://github.com/phearzero/algokit-core.git", version = "0.0.1", default-features = false, features = ["default_client"], branch = "chore/rustls" }
+algokit_http_client = { git = "https://github.com/phearzero/algokit-core.git", version = "0.1.0", default-features = false, features = ["default_client"], branch = "chore/rustls" }
+mousefood = { version = "0.4.0", default-features = false, features = ["fonts"] }
+embedded-graphics = "0.8.1"
+embedded-graphics-core = "0.4.0"
+tinybmp = "0.6.0"
+embedded-graphics-simulator = { version = "0.6.0", optional = true }
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+[build-dependencies]
+embuild = "0.33"
+
+[target.'cfg(any(target_arch = "xtensa", target_arch = "riscv32"))'.dependencies]
+# ring = { version = "0.17", features = ["less-safe-getrandom-espidf"] }
+log = "0.4.29"
+ring = { version = "0.17", features = ["less-safe-getrandom-espidf"] }
+getrandom = { version = "0.2", features = ["custom"] }
+esp-idf-svc = { version = "0.51", features = ["critical-section"] }
+esp-idf-sys = { version = "0.36", features = ["std"] }
+esp-idf-hal = "0.45"
+embedded-can = "0.4.1"
+embedded-hal = "1.0.0"
+embedded-hal-nb = "1.0.0"
+embedded-io = "0.6.1"
+embedded-io-async = "0.6.1"
+embedded-storage = "0.3.1"
+static_cell = { version = "2.1.0", features = ["nightly"] }
+tokio = { version = "1.40.0", features = ["sync", "macros", "rt", "time", "net"] }
+ratatui = { version = "0.30.0", default-features = false }
+reqwest = { version = "0.12.12", default-features = false, features = ["json", "rustls-tls-manual-roots"] }
+# ring = { version = "0.17", features = ["less-safe"] }
+mipidsi = "0.8.0"
+crow-panel-advance-5 = { git = "https://github.com/PhearZero/Advance-5-rs", branch = "main" }
+display-interface-spi = "0.5.0"
+display-interface = "0.5.0"
+algokit_http_client = { git = "https://github.com/phearzero/algokit-core.git", version = "0.1.0", default-features = false, features = ["rustls", "default_client"], branch = "chore/rustls" }
+algod_client = { git = "https://github.com/phearzero/algokit-core.git", version = "0.0.1", default-features = false, features = ["rustls", "default_client"], branch = "chore/rustls" }
+
+[target.'cfg(not(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32")))'.dependencies]
 crossterm = { version = "0.29.0", features = ["event-stream"] }
 tokio = { version = "1.40.0", features = ["full"] }
 ratatui = { version = "0.30.0", features = ["crossterm"] }
@@ -56,3 +98,5 @@ codegen-units = 1
 lto = true
 opt-level = "s"
 strip = true
+
+# ring = { version = "0.17", features = ["less-safe"] }

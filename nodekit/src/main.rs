@@ -3,13 +3,14 @@ use nodekit::app::App;
 use nodekit::cmd::Cli;
 use nodekit::service;
 
-#[cfg_attr(not(target_arch = "wasm32"), tokio::main)]
+#[cfg_attr(not(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32")), tokio::main)]
 #[cfg_attr(target_arch = "wasm32", tokio::main(flavor = "current_thread"))]
 async fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
 
     let cli = Cli::parse();
 
+    #[cfg(not(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32", feature = "simulator", feature = "mock-simulator")))]
     if let Some(command) = cli.command {
         match command {
             nodekit::cmd::Commands::Debug => println!("Debugging..."),
@@ -40,26 +41,93 @@ async fn main() -> color_eyre::Result<()> {
     }
 
     // If no command is provided, run the TUI
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(any(target_arch = "wasm32", target_arch = "xtensa", target_arch = "riscv32")))]
     {
-        let terminal = ratatui::init();
-        let app = App::new(&cli.url, &cli.token, cli.data_dir.as_deref(), cli.no_incentives);
-        
-        // Start background services
-        service::metrics::spawn_metrics_loop(
-            app.events.get_sender(),
-            cli.url.clone(),
-            cli.token.clone(),
-        );
-        service::node::spawn_node_loop(
-            app.events.get_sender(),
-            app.client.clone(),
-            None,
-        );
+        #[cfg(feature = "mock-simulator")]
+        {
+            use mousefood::{EmbeddedBackend, EmbeddedBackendConfig};
+            use embedded_graphics::pixelcolor::Rgb888;
+            use embedded_graphics::mock_display::MockDisplay;
+            use ratatui::Terminal;
 
-        let result = app.run(terminal).await;
-        ratatui::restore();
-        result
+            let mut display = MockDisplay::<Rgb888>::new();
+            display.set_allow_out_of_bounds_drawing(true);
+
+            let app = App::new(&cli.url, &cli.token, cli.data_dir.as_deref(), cli.no_incentives);
+            
+            // Start background services (optional for mock, but good for testing)
+            service::metrics::spawn_metrics_loop(
+                app.events.get_sender(),
+                cli.url.clone(),
+                cli.token.clone(),
+            );
+            service::node::spawn_node_loop(
+                app.events.get_sender(),
+                app.client.clone(),
+                None,
+            );
+
+            let terminal = Terminal::new(EmbeddedBackend::new(&mut display, EmbeddedBackendConfig::default()))?;
+            
+            // For mock simulator on host, we can just run the embedded loop
+            // but we need to make sure we don't block forever or we can at least see something
+            println!("Running Mock Simulator (800x480). Close with Ctrl-C.");
+            app.run(terminal).await
+        }
+        #[cfg(feature = "simulator")]
+        {
+            use embedded_graphics::pixelcolor::Rgb888;
+            use embedded_graphics::prelude::*;
+            use embedded_graphics_simulator::{
+                SimulatorDisplay, Window, OutputSettingsBuilder,
+            };
+            use mousefood::{EmbeddedBackend, EmbeddedBackendConfig};
+            use ratatui::Terminal;
+
+            let mut display = SimulatorDisplay::<Rgb888>::new(Size::new(800, 480));
+            let output_settings = OutputSettingsBuilder::new()
+                .scale(1)
+                .build();
+            let window = Window::new("NodeKit Simulator", &output_settings);
+
+            let app = App::new(&cli.url, &cli.token, cli.data_dir.as_deref(), cli.no_incentives);
+            
+            // Start background services
+            service::metrics::spawn_metrics_loop(
+                app.events.get_sender(),
+                cli.url.clone(),
+                cli.token.clone(),
+            );
+            service::node::spawn_node_loop(
+                app.events.get_sender(),
+                app.client.clone(),
+                None,
+            );
+
+            let terminal = Terminal::new(EmbeddedBackend::new(&mut display, EmbeddedBackendConfig::default()))?;
+            app.run_simulator(terminal, window).await
+        }
+        #[cfg(not(any(feature = "simulator", feature = "mock-simulator")))]
+        {
+            let terminal = ratatui::init();
+            let app = App::new(&cli.url, &cli.token, cli.data_dir.as_deref(), cli.no_incentives);
+            
+            // Start background services
+            service::metrics::spawn_metrics_loop(
+                app.events.get_sender(),
+                cli.url.clone(),
+                cli.token.clone(),
+            );
+            service::node::spawn_node_loop(
+                app.events.get_sender(),
+                app.client.clone(),
+                None,
+            );
+
+            let result = app.run(terminal).await;
+            ratatui::restore();
+            result
+        }
     }
     #[cfg(target_arch = "wasm32")]
     {

@@ -16,7 +16,7 @@ impl ModalMetadata for HybridModal {
         "( Hybrid Mode )".to_string()
     }
     fn border_color(&self) -> Color {
-        Color::Indexed(14)
+        Color::Cyan
     }
     fn controls(&self) -> String {
         "( (esc) to close )".to_string()

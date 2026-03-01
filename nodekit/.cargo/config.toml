@@ -1,0 +1,21 @@
+[build]
+target = "xtensa-esp32s3-espidf"
+target-dir = "target"
+
+[target.xtensa-esp32s3-espidf]
+linker = "ldproxy"
+runner = "espflash flash --monitor"
+rustflags = ["--cfg", "espidf_time64", "-C", "target-feature=+longcalls"]
+
+[unstable]
+build-std = ["std", "panic_abort"]
+
+[env]
+MCU = "esp32s3"
+CC_xtensa_esp32s3_espidf = { value = "xtensa-esp32s3-elf-gcc", force = true }
+AR_xtensa_esp32s3_espidf = { value = "xtensa-esp32s3-elf-ar", force = true }
+CFLAGS_xtensa_esp32s3_espidf = { value = "-mlongcalls", force = true }
+# Note: this variable is not used by the pio builder (`cargo build --features pio`)
+ESP_IDF_VERSION = "v5.4"
+ESP_IDF_SDKCONFIG_DEFAULTS = "sdkconfig.defaults"
+# ESP_IDF_COMPONENTS = "all"

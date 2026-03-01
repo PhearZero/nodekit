@@ -17,7 +17,7 @@ impl<'a> ModalMetadata for ExceptionModal<'a> {
         "( Error )".to_string()
     }
     fn border_color(&self) -> Color {
-        Color::Indexed(9)
+        Color::Red
     }
     fn controls(&self) -> String {
         "( (esc) to close )".to_string()

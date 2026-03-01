@@ -15,7 +15,7 @@ impl ModalMetadata for PartkeyModal {
         "( Participation Keys )".to_string()
     }
     fn border_color(&self) -> Color {
-        Color::Indexed(14)
+        Color::Cyan
     }
     fn controls(&self) -> String {
         "( (g)enerate | (esc) to close )".to_string()

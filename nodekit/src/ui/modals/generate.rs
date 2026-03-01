@@ -18,7 +18,7 @@ impl<'a> ModalMetadata for GenerateModal<'a> {
         "( Generate Participation Key )".to_string()
     }
     fn border_color(&self) -> Color {
-        Color::Indexed(14)
+        Color::Cyan
     }
     fn controls(&self) -> String {
         match self.app.generate_step {
